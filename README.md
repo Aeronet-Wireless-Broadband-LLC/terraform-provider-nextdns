@@ -4,8 +4,9 @@
 
 This is the `lukeevanstech/nextdns` fork of [`amalucelli/terraform-provider-nextdns`](https://github.com/amalucelli/terraform-provider-nextdns), which has not had a release since v0.2.0 (February 2024). The fork:
 
-- adds the thirteen profile switches the API exposes but upstream cannot manage:
+- adds the fourteen profile switches the API exposes but upstream cannot manage:
   - twelve security switches: `free_hosting_domains`, `tunneling_endpoints`, `data_drop_services`, `residential_hosting`, `untrusted_certificates`, `fast_flux_networks`, `dns_data_exfiltration`, `dns_payload_delivery`, `decentralized_web_gateways`, `high_risk_tlds`, `newly_active_domains` and `algorithmically_generated_domains`;
+  - `rotating_ad_domains` (`privacy.rotatingAdDomains`);
   - `bypass_age_verification` (`settings.bav`);
 - keeps every upstream resource, attribute and identifier unchanged, so an existing state moves across with `state replace-provider` and a no-change plan;
 - folds the [`nextdns-go`](https://github.com/amalucelli/nextdns-go) client in as `internal/nextdns` (upstream last released March 2023);
@@ -48,9 +49,9 @@ provider "nextdns" {
 }
 ```
 
-## The thirteen new attributes
+## The fourteen new attributes
 
-All thirteen are `Optional + Computed` booleans with the same three-way behaviour:
+All fourteen are `Optional + Computed` booleans with the same three-way behaviour:
 
 | Written in configuration | What the provider does                                                  |
 | ------------------------ | ----------------------------------------------------------------------- |

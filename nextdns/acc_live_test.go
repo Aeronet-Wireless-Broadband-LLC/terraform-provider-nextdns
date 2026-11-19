@@ -22,8 +22,9 @@ import (
 //
 // fast_flux_networks and dns_data_exfiltration are hidden in the dashboard
 // for some profiles, and newly_active_domains and
-// algorithmically_generated_domains only recently appeared in the API, so a
-// write to any of them is the thing in doubt. They are
+// algorithmically_generated_domains only recently appeared in the API, as
+// did rotating_ad_domains on nextdns_privacy, so a write to any of them is
+// the thing in doubt. They are
 // flipped true, read back, then flipped false and read back again: writing
 // false alone would pass whether or not the API honours the field.
 //
@@ -81,6 +82,15 @@ resource "nextdns_security" "acc" {
   algorithmically_generated_domains = %[4]t
 }
 
+resource "nextdns_privacy" "acc" {
+  profile_id          = nextdns_profile.acc.id
+  disguised_trackers  = false
+  allow_affiliate     = true
+  rotating_ad_domains = %[4]t
+  blocklists          = ["nextdns-recommended"]
+  natives             = []
+}
+
 resource "nextdns_settings" "acc" {
   profile_id              = nextdns_profile.acc.id
   web3                    = true
@@ -131,6 +141,13 @@ resource "nextdns_settings" "acc" {
 			if err := checkLiveSwitches(t, sec, wantHidden); err != nil {
 				return err
 			}
+			priv, err := client.Privacy.Get(ctx, &nextdns.GetPrivacyRequest{ProfileID: rs.Primary.ID})
+			if err != nil {
+				return err
+			}
+			if priv.RotatingAdDomains == nil || *priv.RotatingAdDomains != wantHidden {
+				return fmt.Errorf("live rotatingAdDomains = %v, want %t", priv.RotatingAdDomains, wantHidden)
+			}
 			set, err := client.Settings.Get(ctx, &nextdns.GetSettingsRequest{ProfileID: rs.Primary.ID})
 			if err != nil {
 				return err
@@ -154,6 +171,7 @@ resource "nextdns_settings" "acc" {
 				ConfigPlanChecks: resource.ConfigPlanChecks{
 					PreApply: []plancheck.PlanCheck{
 						plancheck.ExpectResourceAction("nextdns_security.acc", plancheck.ResourceActionUpdate),
+						plancheck.ExpectResourceAction("nextdns_privacy.acc", plancheck.ResourceActionUpdate),
 						plancheck.ExpectResourceAction("nextdns_settings.acc", plancheck.ResourceActionUpdate),
 					},
 				},

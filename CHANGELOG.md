@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added: `nextdns_privacy.rotating_ad_domains` (API `privacy.rotatingAdDomains`, "Block Rotating Ad Domains"), which the API began returning in October 2026. Optional + Computed like the extended security switches: omitted keeps the live value, and an explicit true/false is written. `Delete` leaves it unchanged. Covered by the live round-trip test.
+
 ## v0.5.0 (2026-11-19)
 
 - Added: `nextdns_security.algorithmically_generated_domains` (API `security.algorithmicallyGeneratedDomains`), which the API began returning in October 2026. Optional + Computed like the other extended switches, and covered by the live round-trip test. It is a separate switch from `dga`, which the NextDNS API now documents as deprecated: `dga` always reads back `false` and writes to it are ignored.
