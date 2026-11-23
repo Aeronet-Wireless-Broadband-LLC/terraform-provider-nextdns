@@ -4,11 +4,9 @@ import (
 	"context"
 
 	"github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns/internal/nextdns"
-	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -53,13 +51,13 @@ func (r *rewriteResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 		},
 		Blocks: map[string]schema.Block{
 			"rewrite": schema.SetNestedBlock{
+				Description: "A DNS rewrite. The set is authoritative: an update deletes live rewrites that are not declared, including ones added outside OpenTofu. With no block, updates keep the profile without rewrites.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"domain":  schema.StringAttribute{Required: true},
 						"address": schema.StringAttribute{Required: true},
 					},
 				},
-				Validators: []validator.Set{setvalidator.IsRequired()},
 			},
 		},
 	}

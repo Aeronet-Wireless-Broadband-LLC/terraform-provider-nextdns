@@ -240,3 +240,28 @@ func TestPrivacy_IgnoreChangesSendsPlannedRotatingAdDomains(t *testing.T) {
 		},
 	})
 }
+
+// blocklists and natives are sets: API ordering never shows as a change.
+func TestPrivacy_ListOrderDoesNotDrift(t *testing.T) {
+	f := newFakeAPI(t)
+	seedPrivacy(f)
+	cfg := privacyConfig(f, `  blocklists = ["list-a", "list-b"]
+  natives    = ["apple", "windows"]`)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{Config: cfg},
+			{
+				PreConfig: func() {
+					f.seed("abc123", "privacy/blocklists", `[{"id":"list-b"},{"id":"list-a"}]`)
+					f.seed("abc123", "privacy/natives", `[{"id":"windows"},{"id":"apple"}]`)
+				},
+				Config: cfg,
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+			},
+		},
+	})
+}

@@ -88,20 +88,19 @@ func clientFrom(data any, diags *diag.Diagnostics) *nextdns.Client {
 	return client
 }
 
-// stringIDs returns the elements of a list of strings; null gives nil.
-func stringIDs(ctx context.Context, l types.List, diags *diag.Diagnostics) []string {
-	if l.IsNull() || l.IsUnknown() {
+// stringIDs returns the elements of a set of strings; null gives nil.
+func stringIDs(ctx context.Context, s types.Set, diags *diag.Diagnostics) []string {
+	if s.IsNull() || s.IsUnknown() {
 		return nil
 	}
 	var out []string
-	diags.Append(l.ElementsAs(ctx, &out, false)...)
+	diags.Append(s.ElementsAs(ctx, &out, false)...)
 	return out
 }
 
 // stringListFromAPI turns the ids the API returned into a list value for
-// state. An empty result keeps the prior value when that was null or empty,
-// so an omitted list stays null and an explicit [] stays []: the framework
-// plans a change between the two, where SDKv2 treated them as the same.
+// state. An empty result keeps the prior value when that was null or empty.
+// The data sources use it; the resources hold sets (stringSetFromAPI).
 func stringListFromAPI(ids []string, prior types.List) types.List {
 	if len(ids) == 0 && (prior.IsNull() || (!prior.IsUnknown() && len(prior.Elements()) == 0)) {
 		return prior
@@ -111,4 +110,20 @@ func stringListFromAPI(ids []string, prior types.List) types.List {
 		elems = append(elems, types.StringValue(id))
 	}
 	return types.ListValueMust(types.StringType, elems)
+}
+
+// stringSetFromAPI turns the ids the API returned into a set value for
+// state, so the order the API lists them in never shows as a change. An
+// empty result keeps the prior value when that was null or empty, so an
+// omitted set stays null and an explicit [] stays []: the framework plans a
+// change between the two, where SDKv2 treated them as the same.
+func stringSetFromAPI(ids []string, prior types.Set) types.Set {
+	if len(ids) == 0 && (prior.IsNull() || (!prior.IsUnknown() && len(prior.Elements()) == 0)) {
+		return prior
+	}
+	elems := make([]attr.Value, 0, len(ids))
+	for _, id := range ids {
+		elems = append(elems, types.StringValue(id))
+	}
+	return types.SetValueMust(types.StringType, elems)
 }

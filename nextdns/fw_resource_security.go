@@ -37,7 +37,7 @@ type securityModel struct {
 	DDNS                    types.Bool   `tfsdk:"ddns"`
 	Parking                 types.Bool   `tfsdk:"parking"`
 	Csam                    types.Bool   `tfsdk:"csam"`
-	Tlds                    types.List   `tfsdk:"tlds"`
+	Tlds                    types.Set    `tfsdk:"tlds"`
 	ResetOnDestroy          types.Bool   `tfsdk:"reset_on_destroy"`
 
 	FreeHostingDomains              types.Bool `tfsdk:"free_hosting_domains"`
@@ -132,8 +132,8 @@ func (r *securityResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			"ddns":    required("Block dynamic DNS hostnames."),
 			"parking": required("Block parked domains."),
 			"csam":    required("Block child sexual abuse material."),
-			"tlds": schema.ListAttribute{
-				Description: "Block top-level domains (TLDs).",
+			"tlds": schema.SetAttribute{
+				Description: "Block top-level domains (TLDs). A set: the order is irrelevant. The list is replaced as a whole; leaving it out clears it.",
 				ElementType: types.StringType,
 				Optional:    true,
 			},
@@ -289,7 +289,7 @@ func (r *securityResource) Read(ctx context.Context, req resource.ReadRequest, r
 	for _, t := range sec.Tlds {
 		tlds = append(tlds, t.ID)
 	}
-	m.Tlds = stringListFromAPI(tlds, m.Tlds)
+	m.Tlds = stringSetFromAPI(tlds, m.Tlds)
 
 	// A switch the API does not return keeps its last known value.
 	for _, sw := range m.readSwitches(sec) {

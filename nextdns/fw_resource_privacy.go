@@ -26,8 +26,8 @@ type privacyModel struct {
 	AllowAffiliate    types.Bool   `tfsdk:"allow_affiliate"`
 	DisguisedTrackers types.Bool   `tfsdk:"disguised_trackers"`
 	RotatingAdDomains types.Bool   `tfsdk:"rotating_ad_domains"`
-	Blocklists        types.List   `tfsdk:"blocklists"`
-	Natives           types.List   `tfsdk:"natives"`
+	Blocklists        types.Set    `tfsdk:"blocklists"`
+	Natives           types.Set    `tfsdk:"natives"`
 	ResetOnDestroy    types.Bool   `tfsdk:"reset_on_destroy"`
 }
 
@@ -54,13 +54,13 @@ func (r *privacyResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 				Required:    true,
 			},
 			"rotating_ad_domains": extendedSwitch("Block rotating ad domains (API: `rotatingAdDomains`). Returned by the API since October 2026."),
-			"blocklists": schema.ListAttribute{
-				Description: "Blocklists.",
+			"blocklists": schema.SetAttribute{
+				Description: "Blocklists, by id. A set: the order is irrelevant. The list is replaced as a whole; leaving it out clears it.",
 				ElementType: types.StringType,
 				Optional:    true,
 			},
-			"natives": schema.ListAttribute{
-				Description: "Native tracking protection.",
+			"natives": schema.SetAttribute{
+				Description: "Native tracking protection, by id. A set: the order is irrelevant. The list is replaced as a whole; leaving it out clears it.",
 				ElementType: types.StringType,
 				Optional:    true,
 			},
@@ -169,8 +169,8 @@ func (r *privacyResource) Read(ctx context.Context, req resource.ReadRequest, re
 	if privacy.RotatingAdDomains != nil {
 		m.RotatingAdDomains = types.BoolValue(*privacy.RotatingAdDomains)
 	}
-	m.Blocklists = stringListFromAPI(blocklists, m.Blocklists)
-	m.Natives = stringListFromAPI(natives, m.Natives)
+	m.Blocklists = stringSetFromAPI(blocklists, m.Blocklists)
+	m.Natives = stringSetFromAPI(natives, m.Natives)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }
 

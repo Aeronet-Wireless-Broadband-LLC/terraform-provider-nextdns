@@ -378,3 +378,26 @@ func TestSecurity_DeprecatedSwitchesAreReadOnCreateAndImport(t *testing.T) {
 		},
 	})
 }
+
+// tlds is a set: the API listing the TLDs in another order than the
+// configuration, or the configuration reordering them, is not a change.
+func TestSecurity_TldsOrderDoesNotDrift(t *testing.T) {
+	f := newFakeAPI(t)
+	f.seed("abc123", "security", securityLive)
+	f.seed("abc123", "security/tlds", `[]`)
+	cfg := securityConfig(f, "")
+	empty := resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()}}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{Config: cfg, Check: resource.TestCheckResourceAttr("nextdns_security.this", "tlds.#", "2")},
+			{
+				PreConfig:        func() { f.seed("abc123", "security/tlds", `[{"id":"bid"},{"id":"autos"}]`) },
+				Config:           cfg,
+				ConfigPlanChecks: empty,
+			},
+			{Config: strings.Replace(cfg, `["autos", "bid"]`, `["bid", "autos"]`, 1), ConfigPlanChecks: empty},
+		},
+	})
+}

@@ -5,11 +5,9 @@ import (
 	"fmt"
 
 	"github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns/internal/nextdns"
-	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -110,13 +108,13 @@ func (r *domainListResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		},
 		Blocks: map[string]schema.Block{
 			"domain": schema.SetNestedBlock{
+				Description: "A domain on the list. The list is authoritative and replaced as a whole: entries added outside OpenTofu are removed on the next apply. With no block the list is kept empty.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"id":     schema.StringAttribute{Required: true},
 						"active": schema.BoolAttribute{Required: true},
 					},
 				},
-				Validators: []validator.Set{setvalidator.IsRequired()},
 			},
 		},
 	}
