@@ -32,10 +32,6 @@ resource "nextdns_parental_control" "this" {
     active     = true
     recreation = false
   }
-
-  recreation {
-    timezone = ""
-  }
 %s
 }
 `, extra)
@@ -253,6 +249,12 @@ func importCases() []importCase {
 				f.seed("abc123", "privacy/natives", `[]`)
 			},
 			config: func(f *fakeAPI) string { return privacyConfig(f, `  blocklists = ["nextdns-recommended"]`) },
+		},
+		{
+			// A profile without a recreation schedule, as the API returns it.
+			address: "nextdns_parental_control.this",
+			seed:    seedParentalWithoutSchedule,
+			config:  func(f *fakeAPI) string { return parentalConfig(f, "") },
 		},
 		{
 			address: "nextdns_settings.this",

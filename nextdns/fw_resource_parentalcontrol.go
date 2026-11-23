@@ -77,6 +77,37 @@ func (m *parentalRecreationModel) days(t *nextdns.ParentalControlRecreationTimes
 	}
 }
 
+// isEmpty reports whether a declared recreation block holds no schedule: no
+// timezone and no days. Earlier releases needed `recreation { timezone = "" }`
+// to match the API, so such a block means the same as no block.
+func (m *parentalRecreationModel) isEmpty() bool {
+	if m.Timezone.IsUnknown() || m.Timezone.ValueString() != "" {
+		return false
+	}
+	for _, d := range m.days(&nextdns.ParentalControlRecreationTimes{}) {
+		if len(*d.block) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// recreationIsEmpty reports whether the API's recreation object holds no
+// schedule. A profile without one returns {"times": {}, "timezone": null},
+// and the clearing write below can read back as {"times": null,
+// "timezone": ""}; both are empty.
+func recreationIsEmpty(rec *nextdns.ParentalControlRecreation) bool {
+	if rec.Timezone != "" {
+		return false
+	}
+	if rec.Times == nil {
+		return true
+	}
+	t := rec.Times
+	return t.Monday == nil && t.Tuesday == nil && t.Wednesday == nil && t.Thursday == nil &&
+		t.Friday == nil && t.Saturday == nil && t.Sunday == nil
+}
+
 var recreationTimeFormat = regexp.MustCompile(`^([0-1][0-9]|2[0-3]):[0-5][0-9]:00$`)
 
 func newParentalControlResource() resource.Resource {
@@ -133,7 +164,9 @@ func (r *parentalControlResource) Schema(_ context.Context, _ resource.SchemaReq
 				NestedObject: entry,
 			},
 			"recreation": schema.ListNestedBlock{
-				Description: "Period for each day of the week during which some of the websites, apps, games or categories will not be blocked.",
+				Description: "Period for each day of the week during which some of the websites, apps, games or categories will not be blocked. " +
+					"Optional: leave it out when the profile has no recreation schedule (the API then returns no timezone and no times, which reads back as no block, and nothing is written for it). " +
+					"Removing a declared schedule clears it on the profile.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"timezone": schema.StringAttribute{Required: true},
@@ -167,8 +200,10 @@ func (r *parentalControlResource) Update(ctx context.Context, req resource.Updat
 
 // write PUTs services and categories to their own endpoints, then PATCHes
 // the switches and recreation. The PATCH must not carry services or
-// categories (the cozy-corner fix). With no recreation block an empty
-// recreation object is sent, as under SDKv2.
+// categories (the cozy-corner fix). A declared schedule is sent as is. With
+// none declared (no block, or an empty one) the PATCH leaves recreation out,
+// unless the live profile still has a schedule: that is cleared with the
+// empty recreation object every write sent before this release.
 func (r *parentalControlResource) write(ctx context.Context, plan tfsdk.Plan, state *tfsdk.State, diags *diag.Diagnostics) {
 	var m parentalControlModel
 	diags.Append(plan.Get(ctx, &m)...)
@@ -190,8 +225,8 @@ func (r *parentalControlResource) write(ctx context.Context, plan tfsdk.Plan, st
 		})
 	}
 
-	recreation := &nextdns.ParentalControlRecreation{}
-	if len(m.Recreation) > 0 {
+	var recreation *nextdns.ParentalControlRecreation
+	if len(m.Recreation) > 0 && !m.Recreation[0].isEmpty() {
 		rec := m.Recreation[0]
 		times := &nextdns.ParentalControlRecreationTimes{}
 		for _, d := range rec.days(times) {
@@ -203,6 +238,15 @@ func (r *parentalControlResource) write(ctx context.Context, plan tfsdk.Plan, st
 			}
 		}
 		recreation = &nextdns.ParentalControlRecreation{Times: times, Timezone: rec.Timezone.ValueString()}
+	} else {
+		live, err := r.client.ParentalControl.Get(ctx, &nextdns.GetParentalControlRequest{ProfileID: profileID})
+		if err != nil {
+			diags.AddError("Error reading parental control settings", err.Error())
+			return
+		}
+		if live.Recreation != nil && !recreationIsEmpty(live.Recreation) {
+			recreation = &nextdns.ParentalControlRecreation{}
+		}
 	}
 
 	if err := r.client.ParentalControlServices.Create(ctx, &nextdns.CreateParentalControlServicesRequest{
@@ -267,8 +311,16 @@ func (r *parentalControlResource) Read(ctx context.Context, req resource.ReadReq
 	}
 
 	// The API always returns a recreation object; one it does not return
-	// leaves state as it was, as under SDKv2.
-	if pc.Recreation != nil {
+	// leaves state as it was, as under SDKv2. One without a schedule is no
+	// block, except that a declared empty block is kept so that it plans no
+	// change either.
+	switch {
+	case pc.Recreation == nil:
+	case recreationIsEmpty(pc.Recreation):
+		if len(m.Recreation) != 1 || !m.Recreation[0].isEmpty() {
+			m.Recreation = []parentalRecreationModel{}
+		}
+	default:
 		rec := parentalRecreationModel{Timezone: types.StringValue(pc.Recreation.Timezone)}
 		times := pc.Recreation.Times
 		if times == nil {
@@ -284,6 +336,9 @@ func (r *parentalControlResource) Read(ctx context.Context, req resource.ReadReq
 			}
 		}
 		m.Recreation = []parentalRecreationModel{rec}
+	}
+	if m.Recreation == nil {
+		m.Recreation = []parentalRecreationModel{}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
