@@ -26,7 +26,7 @@ resource "nextdns_allowlist" "this" {
 }
 
 // The whole list is PUT on every write, a hand-added entry shows up as drift
-// and is removed by the next apply, and destroy empties the list.
+// and is removed by the next apply, and destroy leaves the list alone.
 func TestAllowlist_ReplaceDriftAndDestroy(t *testing.T) {
 	f := newFakeAPI(t)
 	f.seed("abc123", "allowlist", `[]`)
@@ -34,9 +34,8 @@ func TestAllowlist_ReplaceDriftAndDestroy(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		CheckDestroy: func(_ *terraformState) error {
-			puts := f.requests("PUT", "/allowlist")
-			if l := f.list("abc123", "allowlist"); len(l) != 0 {
-				return fmt.Errorf("allowlist not emptied on destroy: %v (%d PUTs)", l, len(puts))
+			if l := f.list("abc123", "allowlist"); len(l) != 2 {
+				return fmt.Errorf("allowlist changed on destroy: %v", l)
 			}
 			return nil
 		},
@@ -124,7 +123,7 @@ resource "nextdns_rewrite" "this" {
 }
 
 // Update touches only what changed: the kept rewrite is neither deleted nor
-// recreated.
+// recreated. Destroy leaves the rewrites alone.
 func TestRewrite_UpdateIsIncremental(t *testing.T) {
 	f := newFakeAPI(t)
 	f.seed("abc123", "rewrites", `[]`)
@@ -132,8 +131,8 @@ func TestRewrite_UpdateIsIncremental(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		CheckDestroy: func(_ *terraformState) error {
-			if l := f.list("abc123", "rewrites"); len(l) != 0 {
-				return fmt.Errorf("rewrites left after destroy: %v", l)
+			if l := f.list("abc123", "rewrites"); len(l) != 2 {
+				return fmt.Errorf("rewrites changed on destroy: %v", l)
 			}
 			return nil
 		},

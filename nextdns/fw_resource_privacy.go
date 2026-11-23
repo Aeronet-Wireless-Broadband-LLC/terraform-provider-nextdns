@@ -28,6 +28,7 @@ type privacyModel struct {
 	RotatingAdDomains types.Bool   `tfsdk:"rotating_ad_domains"`
 	Blocklists        types.List   `tfsdk:"blocklists"`
 	Natives           types.List   `tfsdk:"natives"`
+	ResetOnDestroy    types.Bool   `tfsdk:"reset_on_destroy"`
 }
 
 func newPrivacyResource() resource.Resource {
@@ -41,8 +42,9 @@ func (r *privacyResource) Metadata(_ context.Context, req resource.MetadataReque
 func (r *privacyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"id":         idAttribute(),
-			"profile_id": profileIDAttribute(),
+			"id":               idAttribute(),
+			"profile_id":       profileIDAttribute(),
+			"reset_on_destroy": resetOnDestroyAttribute("empties `blocklists` and `natives` and sets `allow_affiliate` and `disguised_trackers` to false, leaving `rotating_ad_domains` as it is"),
 			"allow_affiliate": schema.BoolAttribute{
 				Description: "Allow affiliate & tracking links.",
 				Required:    true,
@@ -160,6 +162,7 @@ func (r *privacyResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	m.ID = m.ProfileID
+	m.ResetOnDestroy = boolOrDefault(m.ResetOnDestroy, false)
 	m.AllowAffiliate = types.BoolValue(privacy.AllowAffiliate)
 	m.DisguisedTrackers = types.BoolValue(privacy.DisguisedTrackers)
 	// rotatingAdDomains the API does not return keeps its last known value.
@@ -171,8 +174,9 @@ func (r *privacyResource) Read(ctx context.Context, req resource.ReadRequest, re
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }
 
-// Delete clears both lists and resets the two original switches to false,
-// leaving rotating_ad_domains as it is.
+// Delete only removes the resource from state, unless reset_on_destroy is
+// set: then it clears both lists and resets the two original switches to
+// false, leaving rotating_ad_domains as it is.
 func (r *privacyResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var m privacyModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &m)...)
@@ -180,6 +184,9 @@ func (r *privacyResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 	profileID := m.ProfileID.ValueString()
+	if keepLiveOnDestroy(m.ResetOnDestroy, "nextdns_privacy", profileID, &resp.Diagnostics) {
+		return
+	}
 
 	if err := r.client.PrivacyBlocklists.Create(ctx, &nextdns.CreatePrivacyBlocklistsRequest{
 		ProfileID: profileID, PrivacyBlocklists: []*nextdns.PrivacyBlocklists{},

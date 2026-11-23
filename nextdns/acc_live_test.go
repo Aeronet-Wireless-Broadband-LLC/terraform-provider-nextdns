@@ -49,6 +49,9 @@ provider "nextdns" {}
 
 resource "nextdns_profile" "acc" {
   name = %[1]q
+
+  # Throwaway profile: the harness destroys it at the end.
+  deletion_protection = false
 }
 
 resource "nextdns_security" "acc" {

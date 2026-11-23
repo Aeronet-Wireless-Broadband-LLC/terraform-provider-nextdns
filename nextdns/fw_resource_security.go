@@ -38,6 +38,7 @@ type securityModel struct {
 	Parking                 types.Bool   `tfsdk:"parking"`
 	Csam                    types.Bool   `tfsdk:"csam"`
 	Tlds                    types.List   `tfsdk:"tlds"`
+	ResetOnDestroy          types.Bool   `tfsdk:"reset_on_destroy"`
 
 	FreeHostingDomains              types.Bool `tfsdk:"free_hosting_domains"`
 	TunnelingEndpoints              types.Bool `tfsdk:"tunneling_endpoints"`
@@ -93,6 +94,7 @@ func (r *securityResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 		Attributes: map[string]schema.Attribute{
 			"id":                        idAttribute(),
 			"profile_id":                profileIDAttribute(),
+			"reset_on_destroy":          resetOnDestroyAttribute("clears the TLD list and turns the twelve base switches off (`threat_intelligence_feeds` through `csam`), leaving the extended switches as they are"),
 			"threat_intelligence_feeds": required("Threat intelligence feeds."),
 			"ai_threat_detection":       required("AI-Driven threat detection."),
 			"google_safe_browsing":      required("Google safe browsing."),
@@ -235,6 +237,7 @@ func (r *securityResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	m.ID = m.ProfileID
+	m.ResetOnDestroy = boolOrDefault(m.ResetOnDestroy, false)
 	m.ThreatIntelligenceFeeds = types.BoolValue(sec.ThreatIntelligenceFeeds)
 	m.AiThreatDetection = types.BoolValue(sec.AiThreatDetection)
 	m.GoogleSafeBrowsing = types.BoolValue(sec.GoogleSafeBrowsing)
@@ -264,9 +267,10 @@ func (r *securityResource) Read(ctx context.Context, req resource.ReadRequest, r
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }
 
-// Delete clears the TLD list and PATCHes an empty security object, which
-// sets the twelve original switches to false and leaves the extended ones
-// as they are.
+// Delete only removes the resource from state, unless reset_on_destroy is
+// set: then it clears the TLD list and PATCHes an empty security object,
+// which sets the original switches to false and leaves the extended ones as
+// they are.
 func (r *securityResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var m securityModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &m)...)
@@ -274,6 +278,9 @@ func (r *securityResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 	profileID := m.ProfileID.ValueString()
+	if keepLiveOnDestroy(m.ResetOnDestroy, "nextdns_security", profileID, &resp.Diagnostics) {
+		return
+	}
 
 	if err := r.client.SecurityTlds.Create(ctx, &nextdns.CreateSecurityTldsRequest{
 		ProfileID: profileID, SecurityTlds: []*nextdns.SecurityTlds{},

@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -31,6 +32,45 @@ func profileIDAttribute() schema.StringAttribute {
 		Description: "The profile identifier to target the resource.",
 		Required:    true,
 	}
+}
+
+// resetOnDestroyAttribute is the opt-in to the destroy behaviour of earlier
+// releases, where destroying a section resource reset that section of the
+// live profile. reset describes what a reset does to this resource.
+func resetOnDestroyAttribute(reset string) schema.BoolAttribute {
+	return schema.BoolAttribute{
+		Description: "Whether destroying this resource also resets the live profile. Defaults to `false`: destroy only removes the resource from state and leaves the live profile unchanged. " +
+			"With `true`, destroy " + reset + ", as releases before the AeroNet fork always did. " +
+			"Destroy uses the value recorded in state, so apply a change to this attribute before destroying.",
+		Optional: true,
+		Computed: true,
+		Default:  booldefault.StaticBool(false),
+	}
+}
+
+// boolOrDefault returns v, or def when v is null or unknown: state written
+// before the attribute existed, and state just imported, carry no value for
+// it, and Read records the default so the plan stays empty.
+func boolOrDefault(v types.Bool, def bool) types.Bool {
+	if v.IsNull() || v.IsUnknown() {
+		return types.BoolValue(def)
+	}
+	return v
+}
+
+// keepLiveOnDestroy reports whether Delete must leave the live profile alone,
+// which is the case unless reset_on_destroy is true in state. It then adds a
+// warning saying that only the state entry was removed.
+func keepLiveOnDestroy(reset types.Bool, resourceType, profileID string, diags *diag.Diagnostics) bool {
+	if reset.ValueBool() {
+		return false
+	}
+	diags.AddWarning(
+		"Removed from state only",
+		fmt.Sprintf("%s for profile %s was removed from state; the live profile was not changed. "+
+			"To have destroy reset it instead, set reset_on_destroy = true and apply before destroying.", resourceType, profileID),
+	)
+	return true
 }
 
 // clientFrom unpacks the API client the provider's Configure produced. It

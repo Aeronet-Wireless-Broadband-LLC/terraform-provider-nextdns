@@ -32,6 +32,7 @@ type parentalControlModel struct {
 	Category              []parentalEntryModel      `tfsdk:"category"`
 	Service               []parentalEntryModel      `tfsdk:"service"`
 	Recreation            []parentalRecreationModel `tfsdk:"recreation"`
+	ResetOnDestroy        types.Bool                `tfsdk:"reset_on_destroy"`
 }
 
 type parentalEntryModel struct {
@@ -106,8 +107,9 @@ func (r *parentalControlResource) Schema(_ context.Context, _ resource.SchemaReq
 
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"id":         idAttribute(),
-			"profile_id": profileIDAttribute(),
+			"id":               idAttribute(),
+			"profile_id":       profileIDAttribute(),
+			"reset_on_destroy": resetOnDestroyAttribute("empties the services and categories and turns `safe_search`, `youtube_restricted_mode` and `block_bypass` off, leaving the recreation schedule as it is"),
 			"block_bypass": schema.BoolAttribute{
 				Description: "Block bypass methods.",
 				Required:    true,
@@ -246,6 +248,7 @@ func (r *parentalControlResource) Read(ctx context.Context, req resource.ReadReq
 	}
 
 	m.ID = m.ProfileID
+	m.ResetOnDestroy = boolOrDefault(m.ResetOnDestroy, false)
 	m.BlockBypass = types.BoolValue(pc.BlockBypass)
 	m.SafeSearch = types.BoolValue(pc.SafeSearch)
 	m.YoutubeRestrictedMode = types.BoolValue(pc.YoutubeRestrictedMode)
@@ -286,7 +289,8 @@ func (r *parentalControlResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }
 
-// Delete clears services and categories and PATCHes an empty object.
+// Delete only removes the resource from state, unless reset_on_destroy is
+// set: then it clears services and categories and PATCHes an empty object.
 func (r *parentalControlResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var m parentalControlModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &m)...)
@@ -294,6 +298,9 @@ func (r *parentalControlResource) Delete(ctx context.Context, req resource.Delet
 		return
 	}
 	profileID := m.ProfileID.ValueString()
+	if keepLiveOnDestroy(m.ResetOnDestroy, "nextdns_parental_control", profileID, &resp.Diagnostics) {
+		return
+	}
 
 	if err := r.client.ParentalControlServices.Create(ctx, &nextdns.CreateParentalControlServicesRequest{
 		ProfileID: profileID, ParentalControlServices: []*nextdns.ParentalControlServices{},

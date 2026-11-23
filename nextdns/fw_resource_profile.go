@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -26,6 +27,8 @@ type profileModel struct {
 	ID        types.String `tfsdk:"id"`
 	ProfileID types.String `tfsdk:"profile_id"`
 	Name      types.String `tfsdk:"name"`
+	// DeletionProtection makes Delete fail unless it is false in state.
+	DeletionProtection types.Bool `tfsdk:"deletion_protection"`
 }
 
 func newProfileResource() resource.Resource {
@@ -48,6 +51,15 @@ func (r *profileResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 			"name": schema.StringAttribute{
 				Description: "Profile name.",
 				Required:    true,
+			},
+			"deletion_protection": schema.BoolAttribute{
+				Description: "Whether destroying this resource is refused. Defaults to `true`: destroy fails with an error and the profile is left alone. " +
+					"Destroying the resource with `false` deletes the live NextDNS profile, and every device configured with it stops being filtered by it. " +
+					"Destroy uses the value recorded in state, so set it to `false` and apply before destroying. " +
+					"To stop managing a profile without deleting it, use a `removed` block with `destroy = false` or `tofu state rm`.",
+				Optional: true,
+				Computed: true,
+				Default:  booldefault.StaticBool(true),
 			},
 		},
 	}
@@ -90,6 +102,7 @@ func (r *profileResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	state.ID = state.ProfileID
 	state.Name = types.StringValue(profile.Name)
+	state.DeletionProtection = boolOrDefault(state.DeletionProtection, true)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -116,6 +129,19 @@ func (r *profileResource) Delete(ctx context.Context, req resource.DeleteRequest
 	var state profileModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Null is state written before the attribute existed: protected.
+	if boolOrDefault(state.DeletionProtection, true).ValueBool() {
+		resp.Diagnostics.AddError(
+			"Profile is protected from deletion",
+			fmt.Sprintf("nextdns_profile %s has deletion_protection enabled (the default), so it was not deleted. "+
+				"Deleting it would remove the live NextDNS profile for every device that uses it. "+
+				"To delete it, set deletion_protection = false and apply, then destroy. "+
+				"To stop managing it without deleting it, use a removed block with lifecycle { destroy = false }, or tofu state rm.",
+				state.ProfileID.ValueString()),
+		)
 		return
 	}
 

@@ -121,6 +121,19 @@ func (f *fakeAPI) requests(method, pathSuffix string) []recordedRequest {
 	return out
 }
 
+// writes returns the number of recorded requests that are not GETs.
+func (f *fakeAPI) writes() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, r := range f.reqs {
+		if r.Method != http.MethodGet {
+			n++
+		}
+	}
+	return n
+}
+
 func (f *fakeAPI) handle(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

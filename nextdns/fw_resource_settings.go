@@ -34,6 +34,8 @@ type settingsModel struct {
 	Performance []settingsPerformanceModel `tfsdk:"performance"`
 	Web3        types.Bool                 `tfsdk:"web3"`
 	Bav         types.Bool                 `tfsdk:"bypass_age_verification"`
+	// ResetOnDestroy is the opt-in to the old destroy behaviour.
+	ResetOnDestroy types.Bool `tfsdk:"reset_on_destroy"`
 }
 
 type settingsLogsModel struct {
@@ -96,9 +98,10 @@ func (r *settingsResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"id":         idAttribute(),
-			"profile_id": profileIDAttribute(),
-			"web3":       boolRequired("Web3."),
+			"id":               idAttribute(),
+			"profile_id":       profileIDAttribute(),
+			"reset_on_destroy": resetOnDestroyAttribute("turns logging, the block page, the three performance options and `web3` off, leaving `bypass_age_verification` as it is"),
+			"web3":             boolRequired("Web3."),
 			"bypass_age_verification": schema.BoolAttribute{
 				Description:   "Bypass Age Verification (API: `bav`). Optional + Computed: omitting it keeps the live value and records it in state; an explicit true/false is written.",
 				Optional:      true,
@@ -269,6 +272,7 @@ func (r *settingsResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	m.ID = m.ProfileID
+	m.ResetOnDestroy = boolOrDefault(m.ResetOnDestroy, false)
 	m.Logs = []settingsLogsModel{{
 		Enabled: types.BoolValue(logs.Enabled),
 		Privacy: []settingsLogsPrivacyModel{{
@@ -293,7 +297,8 @@ func (r *settingsResource) Read(ctx context.Context, req resource.ReadRequest, r
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }
 
-// Delete PATCHes zero values everywhere, as the SDKv2 resource did.
+// Delete only removes the resource from state, unless reset_on_destroy is
+// set: then it PATCHes zero values everywhere, as the SDKv2 resource did.
 func (r *settingsResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var m settingsModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &m)...)
@@ -301,6 +306,9 @@ func (r *settingsResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 	profileID := m.ProfileID.ValueString()
+	if keepLiveOnDestroy(m.ResetOnDestroy, "nextdns_settings", profileID, &resp.Diagnostics) {
+		return
+	}
 
 	if err := r.client.SettingsLogs.Update(ctx, &nextdns.UpdateSettingsLogsRequest{ProfileID: profileID, SettingsLogs: &nextdns.SettingsLogs{}}); err != nil {
 		resp.Diagnostics.AddError("Error deleting logs settings", err.Error())
