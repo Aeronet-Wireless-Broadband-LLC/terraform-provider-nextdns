@@ -302,3 +302,27 @@ func TestSecurityDeprecatedSwitchesAreReadButNotSent(t *testing.T) {
 		c.Equal(*p, false)
 	}
 }
+
+func TestSettingsCsamOmittedWhenUnsetAndSentWhenSet(t *testing.T) {
+	c := is.New(t)
+	ts, captured := capturePatch(t)
+	client, err := New(WithBaseURL(ts.URL))
+	c.NoErr(err)
+
+	err = client.Settings.Update(context.Background(), &UpdateSettingsRequest{
+		ProfileID: "abc123",
+		Settings:  &Settings{Web3: true},
+	})
+	c.NoErr(err)
+	_, ok := (*captured)["csam"]
+	c.True(!ok)
+
+	for _, want := range []bool{true, false} {
+		err = client.Settings.Update(context.Background(), &UpdateSettingsRequest{
+			ProfileID: "abc123",
+			Settings:  &Settings{Csam: Bool(want)},
+		})
+		c.NoErr(err)
+		c.Equal((*captured)["csam"], want)
+	}
+}

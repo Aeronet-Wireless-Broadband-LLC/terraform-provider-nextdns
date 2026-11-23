@@ -209,3 +209,104 @@ func TestSettings_IgnoreChangesSendsPlannedBav(t *testing.T) {
 		},
 	})
 }
+
+// csam (API settings.csam) has the same three-way behaviour as
+// bypass_age_verification: omitted is not sent and records the live value,
+// an explicit value is written either way, and the API no longer returning
+// it keeps the last known value.
+func TestSettings_CsamThreeWay(t *testing.T) {
+	f := newFakeAPI(t)
+	seedSettings(f, `, "bav": false, "csam": true`)
+
+	csamNotSent := func(_ *terraformState) error {
+		reqs := f.requests("PATCH", "/settings")
+		if len(reqs) == 0 {
+			return fmt.Errorf("expected a PATCH /settings")
+		}
+		for _, r := range reqs {
+			if _, present := r.Body["csam"]; present {
+				return fmt.Errorf("PATCH /settings sent csam although omitted: %v", r.Body)
+			}
+		}
+		if v, _ := f.get("abc123", "settings", "csam"); v != true {
+			return fmt.Errorf("API csam changed to %v", v)
+		}
+		return nil
+	}
+	apiCsam := func(want bool) resource.TestCheckFunc {
+		return func(_ *terraformState) error {
+			if v, _ := f.get("abc123", "settings", "csam"); v != want {
+				return fmt.Errorf("API csam = %v, want %t", v, want)
+			}
+			return nil
+		}
+	}
+	empty := resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()}}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: settingsConfig(f, ""),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nextdns_settings.this", "csam", "true"),
+					csamNotSent,
+				),
+			},
+			{Config: settingsConfig(f, ""), ConfigPlanChecks: empty},
+			{
+				Config: settingsConfig(f, `  csam = false`),
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction("nextdns_settings.this", plancheck.ResourceActionUpdate),
+				}},
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nextdns_settings.this", "csam", "false"),
+					apiCsam(false),
+				),
+			},
+			{
+				Config: settingsConfig(f, `  csam = true`),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nextdns_settings.this", "csam", "true"),
+					apiCsam(true),
+				),
+			},
+			{
+				PreConfig:        func() { f.hide("abc123", "settings", "csam") },
+				Config:           settingsConfig(f, `  csam = true`),
+				ConfigPlanChecks: empty,
+				Check:            resource.TestCheckResourceAttr("nextdns_settings.this", "csam", "true"),
+			},
+		},
+	})
+}
+
+func TestSettings_ImportReadsCsam(t *testing.T) {
+	f := newFakeAPI(t)
+	seedSettings(f, `, "bav": false, "csam": true`)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config:             settingsConfig(f, ""),
+				ResourceName:       "nextdns_settings.this",
+				ImportState:        true,
+				ImportStateId:      "abc123",
+				ImportStatePersist: true,
+				ImportStateCheck: func(states []*instanceState) error {
+					if got := states[0].Attributes["csam"]; got != "true" {
+						return fmt.Errorf("csam = %q, want true", got)
+					}
+					return nil
+				},
+			},
+			{
+				Config: settingsConfig(f, ""),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+				},
+			},
+		},
+	})
+}
