@@ -6,21 +6,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
 )
 
-// mirrorURL is the provider's own network mirror on GitHub Pages; the
-// migration tests install the last SDKv2 release from it.
-const mirrorURL = "https://lukeevanstech.github.io/terraform-provider-nextdns/"
-
 // TestMain points terraform-plugin-testing at OpenTofu when no binary has
 // been chosen explicitly, so the suite runs against the engine the
-// configuration repositories actually use. Unless a CLI config is already
-// set, it also writes one that installs released versions of
-// lukeevanstech/nextdns from the Pages mirror (see migrationTest).
+// configuration repositories actually use. No test downloads a released
+// provider: every test runs the provider under test against a stub API.
 func TestMain(m *testing.M) {
 	if os.Getenv("TF_ACC_TERRAFORM_PATH") == "" {
 		if p, err := exec.LookPath("tofu"); err == nil {
@@ -30,30 +24,7 @@ func TestMain(m *testing.M) {
 			}
 		}
 	}
-	cleanup := func() {}
-	if os.Getenv("TF_CLI_CONFIG_FILE") == "" {
-		dir, err := os.MkdirTemp("", "nextdns-tofurc-")
-		if err == nil {
-			rc := filepath.Join(dir, ".tofurc")
-			body := fmt.Sprintf(`provider_installation {
-  network_mirror {
-    url     = %q
-    include = ["registry.opentofu.org/lukeevanstech/nextdns"]
-  }
-  direct {
-    exclude = ["registry.opentofu.org/lukeevanstech/nextdns"]
-  }
-}
-`, mirrorURL)
-			if os.WriteFile(rc, []byte(body), 0o600) == nil {
-				_ = os.Setenv("TF_CLI_CONFIG_FILE", rc)
-			}
-			cleanup = func() { _ = os.RemoveAll(dir) }
-		}
-	}
-	code := m.Run()
-	cleanup()
-	os.Exit(code)
+	os.Exit(m.Run())
 }
 
 // Starting the server and fetching the schema validates every resource and

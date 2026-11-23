@@ -82,7 +82,7 @@ jobs:
         run: mise run docs-check
 
   snapshot:
-    name: Snapshot Build + Mirror Install
+    name: Snapshot Build + Local Install
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -95,25 +95,26 @@ jobs:
         with:
           install_args: --locked
       - name: GoReleaser snapshot
-        run: goreleaser release --snapshot --clean
-      - name: Render mirror and install from it
-        # Proves the archives GoReleaser produced are what the mirror protocol
-        # will serve: render a filesystem_mirror from dist/ and tofu init a
-        # module that requires lukeevanstech/nextdns from it.
+        run: goreleaser release --snapshot --clean --skip=sign
+      - name: Install the snapshot from a local mirror
+        # Proves the linux_amd64 archive GoReleaser produced installs and
+        # serves the expected schema: unpack it into a filesystem_mirror and
+        # tofu init a module that requires the provider from it.
         run: |
           sums=(dist/*_SHA256SUMS)
           version="${sums[0]##*-nextdns_}"
           version="${version%_SHA256SUMS}"
-          go run ./cmd/mirror-index -dist dist -version "$version" -out site -copy-archives
-          mkdir -p check
+          dir="site/registry.opentofu.org/aeronet-wireless-broadband-llc/nextdns/${version}/linux_amd64"
+          mkdir -p "$dir" check
+          unzip -q "dist/terraform-provider-nextdns_${version}_linux_amd64.zip" -d "$dir"
           cat > check/.tofurc <<CFG
           provider_installation {
             filesystem_mirror {
               path    = "$PWD/site"
-              include = ["lukeevanstech/nextdns"]
+              include = ["aeronet-wireless-broadband-llc/nextdns"]
             }
             direct {
-              exclude = ["lukeevanstech/nextdns"]
+              exclude = ["aeronet-wireless-broadband-llc/nextdns"]
             }
           }
           CFG
@@ -123,7 +124,7 @@ jobs:
           terraform {
             required_providers {
               nextdns = {
-                source  = "lukeevanstech/nextdns"
+                source  = "aeronet-wireless-broadband-llc/nextdns"
                 version = "$version"
               }
             }
@@ -132,7 +133,7 @@ jobs:
           cd check
           TF_CLI_CONFIG_FILE="$PWD/.tofurc" tofu init -no-color
           TF_CLI_CONFIG_FILE="$PWD/.tofurc" tofu providers schema -json \
-            | jq -e '.provider_schemas["registry.opentofu.org/lukeevanstech/nextdns"].resource_schemas.nextdns_security.block.attributes | has("high_risk_tlds")'
+            | jq -e '.provider_schemas["registry.opentofu.org/aeronet-wireless-broadband-llc/nextdns"].resource_schemas.nextdns_security.block.attributes | has("high_risk_tlds")'
 
   workflow-lint:
     name: Workflow Lint

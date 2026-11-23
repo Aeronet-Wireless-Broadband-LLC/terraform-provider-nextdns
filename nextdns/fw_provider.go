@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/LukeEvansTech/terraform-provider-nextdns/internal/nextdns"
+	"github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns/internal/nextdns"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"

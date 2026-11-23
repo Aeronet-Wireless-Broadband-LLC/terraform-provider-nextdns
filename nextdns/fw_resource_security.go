@@ -3,7 +3,7 @@ package nextdns
 import (
 	"context"
 
-	"github.com/LukeEvansTech/terraform-provider-nextdns/internal/nextdns"
+	"github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns/internal/nextdns"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"

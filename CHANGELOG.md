@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased (AeroNet fork, `aeronet-wireless-broadband-llc/nextdns`)
+
+Forked from LukeEvansTech v0.6.0 (commit `768ef655`) after a code review.
+
+- Changed: module path `github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns`, provider address `registry.opentofu.org/aeronet-wireless-broadband-llc/nextdns`. Distributed through the OpenTofu registry instead of the GitHub Pages network mirror.
+- Changed: releases sign `SHA256SUMS` with GPG (environment `release`); snapshot builds skip signing.
+- Removed: `cmd/mirror-index`, the Pages mirror job and the migration tests (they downloaded and ran a released v0.3.0 binary).
+- Removed: the reusable lint/security workflows and the Renovate preset from the previous maintainer's personal repositories. CI keeps golangci-lint, govulncheck, actionlint + zizmor, docs and snapshot checks.
+- Fixed: README licence (MIT, as `LICENSE` says, not MPL-2.0).
+
 ## v0.6.0 (2026-11-19)
 
 - Added: `nextdns_privacy.rotating_ad_domains` (API `privacy.rotatingAdDomains`, "Block Rotating Ad Domains"), which the API began returning in October 2026. Optional + Computed like the extended security switches: omitted keeps the live value, and an explicit true/false is written. `Delete` leaves it unchanged. Covered by the live round-trip test.

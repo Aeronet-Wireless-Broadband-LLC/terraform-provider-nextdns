@@ -2,7 +2,7 @@
 
 [NextDNS](https://nextdns.io/) provider for [OpenTofu](https://opentofu.org/) and [Terraform](https://terraform.io).
 
-This is the `lukeevanstech/nextdns` fork of [`amalucelli/terraform-provider-nextdns`](https://github.com/amalucelli/terraform-provider-nextdns), which has not had a release since v0.2.0 (February 2024). The fork:
+This is AeroNet's `aeronet-wireless-broadband-llc/nextdns` fork, based on [`LukeEvansTech/terraform-provider-nextdns`](https://github.com/LukeEvansTech/terraform-provider-nextdns) (v0.6.0), itself a fork of [`amalucelli/terraform-provider-nextdns`](https://github.com/amalucelli/terraform-provider-nextdns), which has not had a release since v0.2.0 (February 2024). The LukeEvansTech fork:
 
 - adds the fourteen profile switches the API exposes but upstream cannot manage:
   - twelve security switches: `free_hosting_domains`, `tunneling_endpoints`, `data_drop_services`, `residential_hosting`, `untrusted_certificates`, `fast_flux_networks`, `dns_data_exfiltration`, `dns_payload_delivery`, `decentralized_web_gateways`, `high_risk_tlds`, `newly_active_domains` and `algorithmically_generated_domains`;
@@ -17,29 +17,14 @@ Upstream's history is preserved in this repository.
 
 ## Installation
 
-The provider is distributed from [GitHub Releases](https://github.com/LukeEvansTech/terraform-provider-nextdns/releases) through a [provider network mirror](https://opentofu.org/docs/cli/config/config-file/#provider-installation) on GitHub Pages. It is not on a registry. Point the CLI at the mirror for this one provider:
-
-```hcl
-# .tofurc — select it with TF_CLI_CONFIG_FILE=.tofurc
-provider_installation {
-  network_mirror {
-    url     = "https://lukeevanstech.github.io/terraform-provider-nextdns/"
-    include = ["lukeevanstech/nextdns"]
-  }
-  direct {
-    exclude = ["lukeevanstech/nextdns"]
-  }
-}
-```
-
-The mirror publishes under both `registry.opentofu.org` and `registry.terraform.io`, so the same file works for either engine.
+Published on the [OpenTofu registry](https://search.opentofu.org/) from this repository's GitHub Releases (signed `SHA256SUMS`).
 
 ```hcl
 terraform {
   required_providers {
     nextdns = {
-      source  = "lukeevanstech/nextdns"
-      version = "~> 0.3"
+      source  = "aeronet-wireless-broadband-llc/nextdns"
+      version = "~> 0.7"
     }
   }
 }
@@ -63,9 +48,9 @@ All fourteen are `Optional + Computed` booleans with the same three-way behaviou
 
 ## Migrating from `amalucelli/nextdns`
 
-1. Install the mirror configuration above and change `source` to `lukeevanstech/nextdns`, `version` to `~> 0.3`.
+1. Change `source` to `aeronet-wireless-broadband-llc/nextdns`, `version` to `~> 0.7`.
 2. `tofu init -upgrade`
-3. `tofu state replace-provider registry.opentofu.org/amalucelli/nextdns registry.opentofu.org/lukeevanstech/nextdns` (use `registry.terraform.io` on Terraform).
+3. `tofu state replace-provider registry.opentofu.org/amalucelli/nextdns registry.opentofu.org/aeronet-wireless-broadband-llc/nextdns` (use `registry.terraform.io` on Terraform).
 4. `tofu plan` should report no changes. Then author the new attributes at your leisure.
 
 Rollback is the reverse `state replace-provider` plus reverting the source, version and mirror configuration.
@@ -99,4 +84,4 @@ Pushing a `v*` tag builds unsigned multi-platform archives with GoReleaser, publ
 
 ## Licence
 
-MPL-2.0, as upstream. The vendored client's licence is in `internal/nextdns/LICENSE-nextdns-go.md`.
+MIT, as upstream (`LICENSE`: Copyright 2022 Alexandre Malucelli). The vendored client's licence is in `internal/nextdns/LICENSE-nextdns-go.md`. Changes by LukeEvansTech and AeroNet are under the same licence.

@@ -1,4 +1,4 @@
-module github.com/LukeEvansTech/terraform-provider-nextdns
+module github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns
 
 go 1.26.11
 

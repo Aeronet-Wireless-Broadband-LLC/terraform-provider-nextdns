@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/LukeEvansTech/terraform-provider-nextdns/internal/nextdns"
+	"github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns/internal/nextdns"
 	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"

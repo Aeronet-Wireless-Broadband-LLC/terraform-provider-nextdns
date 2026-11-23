@@ -17,7 +17,7 @@ tofu_bin="${TOFU:-$(command -v tofu)}"
 cat >"$work/cli.tfrc" <<CFG
 provider_installation {
   dev_overrides {
-    "lukeevanstech/nextdns" = "$work"
+    "aeronet-wireless-broadband-llc/nextdns" = "$work"
   }
   direct {}
 }
@@ -28,7 +28,7 @@ cat >"$work/cfg/main.tf" <<'TF'
 terraform {
   required_providers {
     nextdns = {
-      source = "lukeevanstech/nextdns"
+      source = "aeronet-wireless-broadband-llc/nextdns"
     }
   }
 }
