@@ -9,6 +9,16 @@ Forked from LukeEvansTech v0.6.0 (commit `768ef655`) after a code review.
 - Removed: `cmd/mirror-index`, the Pages mirror job and the migration tests (they downloaded and ran a released v0.3.0 binary).
 - Removed: the reusable lint/security workflows and the Renovate preset from the previous maintainer's personal repositories. CI keeps golangci-lint, govulncheck, actionlint + zizmor, docs and snapshot checks.
 - Fixed: README licence (MIT, as `LICENSE` says, not MPL-2.0).
+- Changed (breaking): destroying `nextdns_security`, `nextdns_privacy`, `nextdns_parental_control`, `nextdns_settings`, `nextdns_allowlist`, `nextdns_denylist` or `nextdns_rewrite` only removes it from state, with a warning; the live profile is not changed. The new optional `reset_on_destroy` (default `false`) restores the old reset when it is `true` in state.
+- Added (breaking): `nextdns_profile.deletion_protection`, default `true`. Destroy fails with an error and sends nothing unless it is `false` in state.
+- Fixed: a 5xx or non-JSON error response no longer crashes the provider with a nil-pointer panic in `(*Error).Error`; the message now includes the HTTP status.
+- Added: 429 and 5xx responses are retried with exponential backoff and jitter, honouring `Retry-After`, at most 4 attempts. GET/PUT/PATCH/DELETE are retried on 429 and 5xx, POST only on 429.
+- Security: the client refuses HTTP redirects, so the API key cannot follow one to another host. `base_url` / `NEXTDNS_BASE_URL` must be `https://api.nextdns.io/` or a loopback URL; anything else is a configuration error.
+- Changed: `nextdns_security.dga`, `typo_squatting` and `idn_homographs` are Optional + Computed and deprecated, and are never sent (NextDNS ignores writes and always returns `false`). Configurations that set them to `false` still plan cleanly.
+- Added: `nextdns_settings.csam` (API `settings.csam`), Optional + Computed like `bypass_age_verification`.
+- Fixed: `nextdns_parental_control` reads a recreation object without timezone or times (`{"times": {}, "timezone": null}`, a profile without a schedule) as no `recreation` block, and leaves `recreation` out of the PATCH unless a schedule is declared. A removed schedule is cleared. An imported profile without a schedule plans no changes.
+- Changed: `nextdns_security.tlds`, `nextdns_privacy.blocklists` and `nextdns_privacy.natives` are sets, so API ordering never causes drift.
+- Changed: `nextdns_allowlist`, `nextdns_denylist` and `nextdns_rewrite` accept zero `domain` / `rewrite` blocks, which keeps the live list empty.
 
 ## v0.6.0 (2026-11-19)
 

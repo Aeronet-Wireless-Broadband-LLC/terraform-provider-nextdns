@@ -16,6 +16,10 @@ description: |-
 resource "nextdns_allowlist" "this" {
   profile_id = nextdns_profile.this.id
 
+  # Destroy only removes the resource from state. With reset_on_destroy = true
+  # (applied before the destroy) it empties the live list instead.
+  reset_on_destroy = false
+
   domain {
     id     = "nextdns.io"
     active = true
@@ -37,7 +41,8 @@ resource "nextdns_allowlist" "this" {
 
 ### Optional
 
-- `domain` (Block Set) (see [below for nested schema](#nestedblock--domain))
+- `domain` (Block Set) A domain on the list. The list is authoritative and replaced as a whole: entries added outside OpenTofu are removed on the next apply. With no block the list is kept empty. (see [below for nested schema](#nestedblock--domain))
+- `reset_on_destroy` (Boolean) Whether destroying this resource also resets the live profile. Defaults to `false`: destroy only removes the resource from state and leaves the live profile unchanged. With `true`, destroy empties the list, as releases before the AeroNet fork always did. Destroy uses the value recorded in state, so apply a change to this attribute before destroying.
 
 ### Read-Only
 

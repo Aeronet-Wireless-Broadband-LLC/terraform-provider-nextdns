@@ -2,10 +2,12 @@ package nextdns
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns/internal/nextdns"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -40,7 +42,7 @@ func (p *frameworkProvider) Schema(_ context.Context, _ provider.SchemaRequest, 
 			},
 			"base_url": schema.StringAttribute{
 				Optional:    true,
-				Description: "Base URL of the NextDNS API. Defaults to `https://api.nextdns.io/`; falls back to the `NEXTDNS_BASE_URL` environment variable. Only useful for testing against a stub.",
+				Description: "Base URL of the NextDNS API. Defaults to `https://api.nextdns.io/`; falls back to the `NEXTDNS_BASE_URL` environment variable. Only useful for testing against a stub: the API key is sent to this URL, so only `https://api.nextdns.io/` and loopback URLs (`http://127.0.0.1:<port>/`, `http://localhost:<port>/`) are accepted, and anything else is a configuration error.",
 			},
 		},
 	}
@@ -71,6 +73,14 @@ func (p *frameworkProvider) Configure(ctx context.Context, req provider.Configur
 		baseURL = v
 	}
 	if baseURL != "" {
+		if _, err := nextdns.ValidateBaseURL(baseURL); err != nil {
+			resp.Diagnostics.AddAttributeError(
+				path.Root("base_url"),
+				"Invalid NextDNS base URL",
+				fmt.Sprintf("base_url (or NEXTDNS_BASE_URL) is not allowed: %s. The API key is sent to this URL, so it must be the NextDNS API or a loopback address for a stub server.", err),
+			)
+			return
+		}
 		opts = append(opts, nextdns.WithBaseURL(baseURL))
 	}
 

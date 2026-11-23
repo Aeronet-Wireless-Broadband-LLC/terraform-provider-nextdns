@@ -3,6 +3,7 @@ package nextdns
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -44,9 +45,6 @@ resource "nextdns_security" "this" {
   google_safe_browsing      = false
   crypto_jacking            = true
   dns_rebinding             = true
-  idn_homographs            = true
-  typo_squatting            = true
-  dga                       = true
   nrd                       = true
   ddns                      = true
   parking                   = true
@@ -289,6 +287,117 @@ func TestSecurity_IgnoreChangesSendsPlannedValue(t *testing.T) {
 					},
 				),
 			},
+		},
+	})
+}
+
+// deprecatedSecurityKeys are the API keys of the three switches NextDNS
+// deprecated, which the provider must never send.
+var deprecatedSecurityKeys = []string{"idnHomographs", "typosquatting", "dga"}
+
+// Configurations written for earlier releases set the deprecated switches to
+// false, because they were required. They still apply and plan cleanly, as
+// does leaving them out, and nothing is ever sent for them.
+func TestSecurity_DeprecatedSwitchesAreNeverSent(t *testing.T) {
+	f := newFakeAPI(t)
+	f.seed("abc123", "security", securityLive)
+	f.seed("abc123", "security", `{"idnHomographs": false, "typosquatting": false, "dga": false}`)
+	f.seed("abc123", "security/tlds", `[]`)
+
+	legacy := securityConfig(f, `  idn_homographs = false
+  typo_squatting = false
+  dga            = false`)
+	omitted := securityConfig(f, "")
+	changed := strings.Replace(omitted, "google_safe_browsing      = false", "google_safe_browsing      = true", 1)
+
+	notSent := func(_ *terraformState) error {
+		reqs := f.requests("PATCH", "/security")
+		if len(reqs) == 0 {
+			return fmt.Errorf("expected a PATCH /security")
+		}
+		for _, r := range reqs {
+			for _, k := range deprecatedSecurityKeys {
+				if _, present := r.Body[k]; present {
+					return fmt.Errorf("PATCH /security sent the deprecated %q: %v", k, r.Body)
+				}
+			}
+		}
+		return nil
+	}
+	allFalse := resource.ComposeTestCheckFunc(
+		resource.TestCheckResourceAttr("nextdns_security.this", "idn_homographs", "false"),
+		resource.TestCheckResourceAttr("nextdns_security.this", "typo_squatting", "false"),
+		resource.TestCheckResourceAttr("nextdns_security.this", "dga", "false"),
+	)
+	empty := resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()}}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{Config: legacy, Check: resource.ComposeTestCheckFunc(allFalse, notSent)},
+			{Config: legacy, ConfigPlanChecks: empty},
+			{Config: omitted, ConfigPlanChecks: empty, Check: allFalse},
+			{
+				Config: changed,
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction("nextdns_security.this", plancheck.ResourceActionUpdate),
+				}},
+				Check: resource.ComposeTestCheckFunc(allFalse, notSent),
+			},
+			{Config: changed, ConfigPlanChecks: empty},
+		},
+	})
+}
+
+// A fresh resource that leaves the deprecated switches out records the live
+// values, and an import reads them.
+func TestSecurity_DeprecatedSwitchesAreReadOnCreateAndImport(t *testing.T) {
+	f := newFakeAPI(t)
+	f.seed("abc123", "security", securityLive)
+	f.seed("abc123", "security", `{"idnHomographs": false, "typosquatting": false, "dga": false}`)
+	f.seed("abc123", "security/tlds", `[{"id":"autos"},{"id":"bid"}]`)
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{
+				Config: securityConfig(f, ""),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr("nextdns_security.this", "dga", "false"),
+					resource.TestCheckResourceAttr("nextdns_security.this", "typo_squatting", "false"),
+					resource.TestCheckResourceAttr("nextdns_security.this", "idn_homographs", "false"),
+				),
+			},
+			{
+				Config:            securityConfig(f, ""),
+				ResourceName:      "nextdns_security.this",
+				ImportState:       true,
+				ImportStateId:     "abc123",
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+// tlds is a set: the API listing the TLDs in another order than the
+// configuration, or the configuration reordering them, is not a change.
+func TestSecurity_TldsOrderDoesNotDrift(t *testing.T) {
+	f := newFakeAPI(t)
+	f.seed("abc123", "security", securityLive)
+	f.seed("abc123", "security/tlds", `[]`)
+	cfg := securityConfig(f, "")
+	empty := resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()}}
+
+	resource.UnitTest(t, resource.TestCase{
+		ProtoV5ProviderFactories: protoV5ProviderFactories(),
+		Steps: []resource.TestStep{
+			{Config: cfg, Check: resource.TestCheckResourceAttr("nextdns_security.this", "tlds.#", "2")},
+			{
+				PreConfig:        func() { f.seed("abc123", "security/tlds", `[{"id":"bid"},{"id":"autos"}]`) },
+				Config:           cfg,
+				ConfigPlanChecks: empty,
+			},
+			{Config: strings.Replace(cfg, `["autos", "bid"]`, `["bid", "autos"]`, 1), ConfigPlanChecks: empty},
 		},
 	})
 }

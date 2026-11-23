@@ -34,6 +34,9 @@ type settingsModel struct {
 	Performance []settingsPerformanceModel `tfsdk:"performance"`
 	Web3        types.Bool                 `tfsdk:"web3"`
 	Bav         types.Bool                 `tfsdk:"bypass_age_verification"`
+	Csam        types.Bool                 `tfsdk:"csam"`
+	// ResetOnDestroy is the opt-in to the old destroy behaviour.
+	ResetOnDestroy types.Bool `tfsdk:"reset_on_destroy"`
 }
 
 type settingsLogsModel struct {
@@ -96,11 +99,18 @@ func (r *settingsResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"id":         idAttribute(),
-			"profile_id": profileIDAttribute(),
-			"web3":       boolRequired("Web3."),
+			"id":               idAttribute(),
+			"profile_id":       profileIDAttribute(),
+			"reset_on_destroy": resetOnDestroyAttribute("turns logging, the block page, the three performance options and `web3` off, leaving `bypass_age_verification` and `csam` as they are"),
+			"web3":             boolRequired("Web3."),
 			"bypass_age_verification": schema.BoolAttribute{
 				Description:   "Bypass Age Verification (API: `bav`). Optional + Computed: omitting it keeps the live value and records it in state; an explicit true/false is written.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+			},
+			"csam": schema.BoolAttribute{
+				Description:   "The profile-level CSAM setting (API: `settings.csam`), separate from `nextdns_security.csam`. Optional + Computed: omitting it keeps the live value and records it in state; an explicit true/false is written.",
 				Optional:      true,
 				Computed:      true,
 				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
@@ -173,8 +183,9 @@ func (r *settingsResource) Update(ctx context.Context, req resource.UpdateReques
 }
 
 // write PATCHes logs, block page and performance at their own paths, then
-// the settings object, as the SDKv2 resource did. bav is sent only when the
-// configuration sets it. Only the first element of each block is used.
+// the settings object, as the SDKv2 resource did. bav and csam are sent only
+// when the configuration sets them. Only the first element of each block is
+// used.
 func (r *settingsResource) write(ctx context.Context, config tfsdk.Config, plan tfsdk.Plan, state *tfsdk.State, diags *diag.Diagnostics) {
 	var m, cfg settingsModel
 	diags.Append(plan.Get(ctx, &m)...)
@@ -207,6 +218,7 @@ func (r *settingsResource) write(ctx context.Context, config tfsdk.Config, plan 
 		},
 		Web3: m.Web3.ValueBool(),
 		Bav:  configuredBool(cfg.Bav, m.Bav),
+		Csam: configuredBool(cfg.Csam, m.Csam),
 	}
 
 	if err := r.client.SettingsLogs.Update(ctx, &nextdns.UpdateSettingsLogsRequest{ProfileID: profileID, SettingsLogs: settings.Logs}); err != nil {
@@ -226,13 +238,18 @@ func (r *settingsResource) write(ctx context.Context, config tfsdk.Config, plan 
 		return
 	}
 
-	if m.Bav.IsUnknown() {
+	if m.Bav.IsUnknown() || m.Csam.IsUnknown() {
 		live, err := r.client.Settings.Get(ctx, &nextdns.GetSettingsRequest{ProfileID: profileID})
 		if err != nil {
 			diags.AddError("Error reading back settings", err.Error())
 			return
 		}
-		m.Bav = types.BoolPointerValue(live.Bav)
+		if m.Bav.IsUnknown() {
+			m.Bav = types.BoolPointerValue(live.Bav)
+		}
+		if m.Csam.IsUnknown() {
+			m.Csam = types.BoolPointerValue(live.Csam)
+		}
 	}
 
 	m.ID = m.ProfileID
@@ -269,6 +286,7 @@ func (r *settingsResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	m.ID = m.ProfileID
+	m.ResetOnDestroy = boolOrDefault(m.ResetOnDestroy, false)
 	m.Logs = []settingsLogsModel{{
 		Enabled: types.BoolValue(logs.Enabled),
 		Privacy: []settingsLogsPrivacyModel{{
@@ -289,11 +307,16 @@ func (r *settingsResource) Read(ctx context.Context, req resource.ReadRequest, r
 	if s.Bav != nil {
 		m.Bav = types.BoolValue(*s.Bav)
 	}
+	// So does csam.
+	if s.Csam != nil {
+		m.Csam = types.BoolValue(*s.Csam)
+	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }
 
-// Delete PATCHes zero values everywhere, as the SDKv2 resource did.
+// Delete only removes the resource from state, unless reset_on_destroy is
+// set: then it PATCHes zero values everywhere, as the SDKv2 resource did.
 func (r *settingsResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var m settingsModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &m)...)
@@ -301,6 +324,9 @@ func (r *settingsResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 	profileID := m.ProfileID.ValueString()
+	if keepLiveOnDestroy(m.ResetOnDestroy, "nextdns_settings", profileID, &resp.Diagnostics) {
+		return
+	}
 
 	if err := r.client.SettingsLogs.Update(ctx, &nextdns.UpdateSettingsLogsRequest{ProfileID: profileID, SettingsLogs: &nextdns.SettingsLogs{}}); err != nil {
 		resp.Diagnostics.AddError("Error deleting logs settings", err.Error())

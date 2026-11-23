@@ -5,11 +5,9 @@ import (
 	"fmt"
 
 	"github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns/internal/nextdns"
-	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -38,6 +36,8 @@ type domainListModel struct {
 	ID        types.String       `tfsdk:"id"`
 	ProfileID types.String       `tfsdk:"profile_id"`
 	Domain    []domainEntryModel `tfsdk:"domain"`
+	// ResetOnDestroy is the opt-in to the old destroy behaviour.
+	ResetOnDestroy types.Bool `tfsdk:"reset_on_destroy"`
 }
 
 type domainEntryModel struct {
@@ -102,18 +102,19 @@ func (r *domainListResource) Metadata(_ context.Context, req resource.MetadataRe
 func (r *domainListResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"id":         idAttribute(),
-			"profile_id": profileIDAttribute(),
+			"id":               idAttribute(),
+			"profile_id":       profileIDAttribute(),
+			"reset_on_destroy": resetOnDestroyAttribute("empties the list"),
 		},
 		Blocks: map[string]schema.Block{
 			"domain": schema.SetNestedBlock{
+				Description: "A domain on the list. The list is authoritative and replaced as a whole: entries added outside OpenTofu are removed on the next apply. With no block the list is kept empty.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"id":     schema.StringAttribute{Required: true},
 						"active": schema.BoolAttribute{Required: true},
 					},
 				},
-				Validators: []validator.Set{setvalidator.IsRequired()},
 			},
 		},
 	}
@@ -163,14 +164,20 @@ func (r *domainListResource) Read(ctx context.Context, req resource.ReadRequest,
 	}
 
 	m.ID = m.ProfileID
+	m.ResetOnDestroy = boolOrDefault(m.ResetOnDestroy, false)
 	m.Domain = entries
 	resp.Diagnostics.Append(resp.State.Set(ctx, &m)...)
 }
 
+// Delete only removes the resource from state, unless reset_on_destroy is
+// set: then it empties the list.
 func (r *domainListResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var m domainListModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &m)...)
 	if resp.Diagnostics.HasError() {
+		return
+	}
+	if keepLiveOnDestroy(m.ResetOnDestroy, "nextdns"+r.kind.typeSuffix, m.ProfileID.ValueString(), &resp.Diagnostics) {
 		return
 	}
 

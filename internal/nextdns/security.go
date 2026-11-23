@@ -16,14 +16,19 @@ type Security struct {
 	GoogleSafeBrowsing      bool            `json:"googleSafeBrowsing"`
 	Cryptojacking           bool            `json:"cryptojacking"`
 	DNSRebinding            bool            `json:"dnsRebinding"`
-	IdnHomographs           bool            `json:"idnHomographs"`
-	Typosquatting           bool            `json:"typosquatting"`
-	Dga                     bool            `json:"dga"`
 	Nrd                     bool            `json:"nrd"`
 	DDNS                    bool            `json:"ddns"`
 	Parking                 bool            `json:"parking"`
 	Csam                    bool            `json:"csam"`
 	Tlds                    []*SecurityTlds `json:"tlds,omitempty"`
+
+	// Deprecated by NextDNS: the API ignores writes to these three and
+	// always reads them back false. Pointers with omitempty so that the
+	// provider, which never sets them, never sends them; a GET still fills
+	// them in.
+	IdnHomographs *bool `json:"idnHomographs,omitempty"`
+	Typosquatting *bool `json:"typosquatting,omitempty"`
+	Dga           *bool `json:"dga,omitempty"`
 
 	// Extended switches (v0.3.0). Pointer booleans with omitempty: nil is
 	// omitted from a PATCH and left unchanged server-side; an explicit false

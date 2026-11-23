@@ -97,9 +97,6 @@ resource "nextdns_security" "this" {
   google_safe_browsing      = true
   crypto_jacking            = false
   dns_rebinding             = true
-  idn_homographs            = false
-  typo_squatting            = false
-  dga                       = false
   nrd                       = true
   ddns                      = false
   parking                   = true

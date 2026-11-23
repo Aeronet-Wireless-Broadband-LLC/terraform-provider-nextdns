@@ -28,9 +28,9 @@ import (
 // flipped true, read back, then flipped false and read back again: writing
 // false alone would pass whether or not the API honours the field.
 //
-// idn_homographs, typo_squatting and dga are written false: the API now
-// documents all three as deprecated, ignores writes to them and always reads
-// them back false, so true would plan a change forever.
+// idn_homographs, typo_squatting and dga are left out: the API documents
+// all three as deprecated, ignores writes to them and always reads them back
+// false, and the provider no longer sends them.
 //
 //	TF_ACC=1 NEXTDNS_API_KEY=... go test ./nextdns/ -run TestAccLive -v
 func TestAccLive_ExtendedAttributesRoundTrip(t *testing.T) {
@@ -49,6 +49,9 @@ provider "nextdns" {}
 
 resource "nextdns_profile" "acc" {
   name = %[1]q
+
+  # Throwaway profile: the harness destroys it at the end.
+  deletion_protection = false
 }
 
 resource "nextdns_security" "acc" {
@@ -58,9 +61,6 @@ resource "nextdns_security" "acc" {
   google_safe_browsing      = false
   crypto_jacking            = true
   dns_rebinding             = true
-  idn_homographs            = false
-  typo_squatting            = false
-  dga                       = false
   nrd                       = true
   ddns                      = true
   parking                   = true

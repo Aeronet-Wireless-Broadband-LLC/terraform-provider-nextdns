@@ -4,11 +4,9 @@ import (
 	"context"
 
 	"github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns/internal/nextdns"
-	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -27,6 +25,8 @@ type rewriteModel struct {
 	ID        types.String        `tfsdk:"id"`
 	ProfileID types.String        `tfsdk:"profile_id"`
 	Rewrite   []rewriteEntryModel `tfsdk:"rewrite"`
+	// ResetOnDestroy is the opt-in to the old destroy behaviour.
+	ResetOnDestroy types.Bool `tfsdk:"reset_on_destroy"`
 }
 
 type rewriteEntryModel struct {
@@ -45,18 +45,19 @@ func (r *rewriteResource) Metadata(_ context.Context, req resource.MetadataReque
 func (r *rewriteResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"id":         idAttribute(),
-			"profile_id": profileIDAttribute(),
+			"id":               idAttribute(),
+			"profile_id":       profileIDAttribute(),
+			"reset_on_destroy": resetOnDestroyAttribute("deletes every rewrite on the profile, declared or not"),
 		},
 		Blocks: map[string]schema.Block{
 			"rewrite": schema.SetNestedBlock{
+				Description: "A DNS rewrite. The set is authoritative: an update deletes live rewrites that are not declared, including ones added outside OpenTofu. With no block, updates keep the profile without rewrites.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"domain":  schema.StringAttribute{Required: true},
 						"address": schema.StringAttribute{Required: true},
 					},
 				},
-				Validators: []validator.Set{setvalidator.IsRequired()},
 			},
 		},
 	}
@@ -115,6 +116,7 @@ func (r *rewriteResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	state.ID = state.ProfileID
+	state.ResetOnDestroy = boolOrDefault(state.ResetOnDestroy, false)
 	state.Rewrite = make([]rewriteEntryModel, 0, len(live))
 	for _, e := range live {
 		state.Rewrite = append(state.Rewrite, rewriteEntryModel{
@@ -167,7 +169,8 @@ func (r *rewriteResource) Update(ctx context.Context, req resource.UpdateRequest
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-// Delete removes every rewrite on the profile, declared or not, as the
+// Delete only removes the resource from state, unless reset_on_destroy is
+// set: then it removes every rewrite on the profile, declared or not, as the
 // SDKv2 implementation did.
 func (r *rewriteResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state rewriteModel
@@ -176,6 +179,9 @@ func (r *rewriteResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 	profileID := state.ProfileID.ValueString()
+	if keepLiveOnDestroy(state.ResetOnDestroy, "nextdns_rewrite", profileID, &resp.Diagnostics) {
+		return
+	}
 
 	live, err := r.client.Rewrites.List(ctx, &nextdns.ListRewritesRequest{ProfileID: profileID})
 	if err != nil {

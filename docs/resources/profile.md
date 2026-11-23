@@ -15,6 +15,10 @@ description: |-
 ```terraform
 resource "nextdns_profile" "this" {
   name = "terraform-provider-nextdns"
+
+  # Defaults to true: destroy fails instead of deleting the live profile.
+  # Set it to false and apply before a destroy that should delete it.
+  deletion_protection = true
 }
 ```
 
@@ -24,6 +28,10 @@ resource "nextdns_profile" "this" {
 ### Required
 
 - `name` (String) Profile name.
+
+### Optional
+
+- `deletion_protection` (Boolean) Whether destroying this resource is refused. Defaults to `true`: destroy fails with an error and the profile is left alone. Destroying the resource with `false` deletes the live NextDNS profile, and every device configured with it stops being filtered by it. Destroy uses the value recorded in state, so set it to `false` and apply before destroying. To stop managing a profile without deleting it, use a `removed` block with `destroy = false` or `tofu state rm`.
 
 ### Read-Only
 

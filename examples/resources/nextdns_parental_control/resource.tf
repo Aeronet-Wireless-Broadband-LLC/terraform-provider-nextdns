@@ -17,8 +17,8 @@ resource "nextdns_parental_control" "this" {
     recreation = false
   }
 
-  # The API always returns a recreation object; declare it (an empty timezone
-  # is fine) so state matches and there is no perpetual diff.
+  # Optional: leave the block out for a profile without a recreation
+  # schedule. Removing a declared schedule clears it.
   recreation {
     timezone = "Europe/London"
 

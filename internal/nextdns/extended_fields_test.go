@@ -270,3 +270,59 @@ func TestPrivacyGetRotatingAdDomains(t *testing.T) {
 	c.NoErr(err)
 	c.True(p.RotatingAdDomains == nil)
 }
+
+// The deprecated switches are never sent by a PATCH built without them, and
+// a GET still reads them.
+func TestSecurityDeprecatedSwitchesAreReadButNotSent(t *testing.T) {
+	c := is.New(t)
+	ts, captured := capturePatch(t)
+	client, err := New(WithBaseURL(ts.URL))
+	c.NoErr(err)
+
+	err = client.Security.Update(context.Background(), &UpdateSecurityRequest{
+		ProfileID: "abc123",
+		Security:  &Security{ThreatIntelligenceFeeds: true},
+	})
+	c.NoErr(err)
+	for _, k := range []string{"idnHomographs", "typosquatting", "dga"} {
+		_, ok := (*captured)[k]
+		c.True(!ok) // key must be absent
+	}
+
+	get := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"idnHomographs":false,"typosquatting":false,"dga":false}}`))
+	}))
+	t.Cleanup(get.Close)
+	client, err = New(WithBaseURL(get.URL))
+	c.NoErr(err)
+	sec, err := client.Security.Get(context.Background(), &GetSecurityRequest{ProfileID: "abc123"})
+	c.NoErr(err)
+	for _, p := range []*bool{sec.IdnHomographs, sec.Typosquatting, sec.Dga} {
+		c.True(p != nil)
+		c.Equal(*p, false)
+	}
+}
+
+func TestSettingsCsamOmittedWhenUnsetAndSentWhenSet(t *testing.T) {
+	c := is.New(t)
+	ts, captured := capturePatch(t)
+	client, err := New(WithBaseURL(ts.URL))
+	c.NoErr(err)
+
+	err = client.Settings.Update(context.Background(), &UpdateSettingsRequest{
+		ProfileID: "abc123",
+		Settings:  &Settings{Web3: true},
+	})
+	c.NoErr(err)
+	_, ok := (*captured)["csam"]
+	c.True(!ok)
+
+	for _, want := range []bool{true, false} {
+		err = client.Settings.Update(context.Background(), &UpdateSettingsRequest{
+			ProfileID: "abc123",
+			Settings:  &Settings{Csam: Bool(want)},
+		})
+		c.NoErr(err)
+		c.Equal((*captured)["csam"], want)
+	}
+}

@@ -19,6 +19,10 @@ type Settings struct {
 	// Bav is "Bypass Age Verification" (v0.3.0). Pointer with omitempty so a
 	// nil value is left unchanged by a PATCH and an explicit false is sent.
 	Bav *bool `json:"bav,omitempty"`
+
+	// Csam is the profile-level `csam` setting, separate from the security
+	// switch of the same name. Pointer with omitempty, like Bav.
+	Csam *bool `json:"csam,omitempty"`
 }
 
 // UpdateSettingsRequest encapsulates the request for updating the settings of a profile.

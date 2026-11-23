@@ -3,7 +3,6 @@ package nextdns
 
 import (
 	"fmt"
-	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -26,7 +25,7 @@ resource "nextdns_allowlist" "this" {
 }
 
 // The whole list is PUT on every write, a hand-added entry shows up as drift
-// and is removed by the next apply, and destroy empties the list.
+// and is removed by the next apply, and destroy leaves the list alone.
 func TestAllowlist_ReplaceDriftAndDestroy(t *testing.T) {
 	f := newFakeAPI(t)
 	f.seed("abc123", "allowlist", `[]`)
@@ -34,9 +33,8 @@ func TestAllowlist_ReplaceDriftAndDestroy(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		CheckDestroy: func(_ *terraformState) error {
-			puts := f.requests("PUT", "/allowlist")
-			if l := f.list("abc123", "allowlist"); len(l) != 0 {
-				return fmt.Errorf("allowlist not emptied on destroy: %v (%d PUTs)", l, len(puts))
+			if l := f.list("abc123", "allowlist"); len(l) != 2 {
+				return fmt.Errorf("allowlist changed on destroy: %v", l)
 			}
 			return nil
 		},
@@ -124,7 +122,7 @@ resource "nextdns_rewrite" "this" {
 }
 
 // Update touches only what changed: the kept rewrite is neither deleted nor
-// recreated.
+// recreated. Destroy leaves the rewrites alone.
 func TestRewrite_UpdateIsIncremental(t *testing.T) {
 	f := newFakeAPI(t)
 	f.seed("abc123", "rewrites", `[]`)
@@ -132,8 +130,8 @@ func TestRewrite_UpdateIsIncremental(t *testing.T) {
 	resource.UnitTest(t, resource.TestCase{
 		ProtoV5ProviderFactories: protoV5ProviderFactories(),
 		CheckDestroy: func(_ *terraformState) error {
-			if l := f.list("abc123", "rewrites"); len(l) != 0 {
-				return fmt.Errorf("rewrites left after destroy: %v", l)
+			if l := f.list("abc123", "rewrites"); len(l) != 2 {
+				return fmt.Errorf("rewrites changed on destroy: %v", l)
 			}
 			return nil
 		},
@@ -172,21 +170,53 @@ func TestRewrite_UpdateIsIncremental(t *testing.T) {
 	})
 }
 
-// SDKv2 declared the domain and rewrite blocks Required (min_items 1 in the
-// schema); the framework enforces the same with a validator.
-func TestLists_BlockIsRequired(t *testing.T) {
-	f := newFakeAPI(t)
-	for _, cfg := range []string{
-		`resource "nextdns_allowlist" "this" { profile_id = "abc123" }`,
-		`resource "nextdns_denylist" "this" { profile_id = "abc123" }`,
-		`resource "nextdns_rewrite" "this" { profile_id = "abc123" }`,
+// An allowlist, denylist or rewrite resource may declare no entries at all,
+// which keeps the live list empty: an entry added by hand shows up as drift
+// and the next apply removes it.
+func TestLists_EmptySetIsAllowedAndAuthoritative(t *testing.T) {
+	for _, tc := range []struct{ typ, block, path, byHand string }{
+		{"nextdns_allowlist", "domain", "allowlist", `[{"id":"by-hand.example","active":true}]`},
+		{"nextdns_denylist", "domain", "denylist", `[{"id":"by-hand.example","active":false}]`},
+		{"nextdns_rewrite", "rewrite", "rewrites", `[{"id":"rw90","name":"by-hand.example","type":"A","content":"192.0.2.9"}]`},
 	} {
-		resource.UnitTest(t, resource.TestCase{
-			ProtoV5ProviderFactories: protoV5ProviderFactories(),
-			Steps: []resource.TestStep{{
-				Config:      providerBlock(f) + cfg,
-				ExpectError: regexp.MustCompile(`must have a configuration value`),
-			}},
+		t.Run(tc.typ, func(t *testing.T) {
+			f := newFakeAPI(t)
+			f.seed("abc123", tc.path, `[]`)
+			cfg := providerBlock(f) + fmt.Sprintf(`
+resource %q "this" {
+  profile_id = "abc123"
+}
+`, tc.typ)
+			address := tc.typ + ".this"
+
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV5ProviderFactories: protoV5ProviderFactories(),
+				Steps: []resource.TestStep{
+					{
+						Config: cfg,
+						Check:  resource.TestCheckResourceAttr(address, tc.block+".#", "0"),
+					},
+					{
+						PreConfig: func() { f.seed("abc123", tc.path, tc.byHand) },
+						Config:    cfg,
+						ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+							plancheck.ExpectResourceAction(address, plancheck.ResourceActionUpdate),
+						}},
+						Check: func(_ *terraformState) error {
+							if l := f.list("abc123", tc.path); len(l) != 0 {
+								return fmt.Errorf("%s = %v after apply, want empty", tc.path, l)
+							}
+							return nil
+						},
+					},
+					{
+						Config: cfg,
+						ConfigPlanChecks: resource.ConfigPlanChecks{
+							PreApply: []plancheck.PlanCheck{plancheck.ExpectEmptyPlan()},
+						},
+					},
+				},
+			})
 		})
 	}
 }

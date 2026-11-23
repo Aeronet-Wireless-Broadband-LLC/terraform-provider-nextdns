@@ -32,8 +32,8 @@ resource "nextdns_parental_control" "this" {
     recreation = false
   }
 
-  # The API always returns a recreation object; declare it (an empty timezone
-  # is fine) so state matches and there is no perpetual diff.
+  # Optional: leave the block out for a profile without a recreation
+  # schedule. Removing a declared schedule clears it.
   recreation {
     timezone = "Europe/London"
 
@@ -58,7 +58,8 @@ resource "nextdns_parental_control" "this" {
 ### Optional
 
 - `category` (Block Set) Restrict access to specific categories of websites and apps. (see [below for nested schema](#nestedblock--category))
-- `recreation` (Block List) Period for each day of the week during which some of the websites, apps, games or categories will not be blocked. (see [below for nested schema](#nestedblock--recreation))
+- `recreation` (Block List) Period for each day of the week during which some of the websites, apps, games or categories will not be blocked. Optional: leave it out when the profile has no recreation schedule (the API then returns no timezone and no times, which reads back as no block, and nothing is written for it). Removing a declared schedule clears it on the profile. (see [below for nested schema](#nestedblock--recreation))
+- `reset_on_destroy` (Boolean) Whether destroying this resource also resets the live profile. Defaults to `false`: destroy only removes the resource from state and leaves the live profile unchanged. With `true`, destroy empties the services and categories and turns `safe_search`, `youtube_restricted_mode` and `block_bypass` off, leaving the recreation schedule as it is, as releases before the AeroNet fork always did. Destroy uses the value recorded in state, so apply a change to this attribute before destroying.
 - `service` (Block Set) Restrict access to specific websites, apps and games. (see [below for nested schema](#nestedblock--service))
 
 ### Read-Only
