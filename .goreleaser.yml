@@ -39,9 +39,19 @@ checksum:
     - glob: terraform-registry-manifest.json
       name_template: "{{ .ProjectName }}_{{ .Version }}_manifest.json"
 
-# No `signs:` block. Distribution is a network mirror, which carries h1
-# hashes of the archives itself; there is no registry to present a GPG
-# signature to.
+# The OpenTofu registry verifies SHA256SUMS against SHA256SUMS.sig with the
+# GPG key submitted for this provider. GPG_FINGERPRINT comes from the
+# `release` environment (see .github/workflows/release.yaml).
+signs:
+  - artifacts: checksum
+    args:
+      - "--batch"
+      - "--local-user"
+      - "{{ .Env.GPG_FINGERPRINT }}"
+      - "--output"
+      - "${signature}"
+      - "--detach-sign"
+      - "${artifact}"
 
 release:
   extra_files:
@@ -50,8 +60,8 @@ release:
 
 # Snapshot builds carry a plain semver (next patch) rather than the default
 # "-SNAPSHOT-<sha>" prerelease, which OpenTofu will not select from a mirror
-# even under an exact constraint. CI installs the snapshot from a rendered
-# mirror to prove the archives match the protocol.
+# even under an exact constraint. CI installs the snapshot from a local
+# filesystem mirror to prove the archives work; snapshots pass --skip=sign.
 snapshot:
   version_template: "{{ incpatch .Version }}"
 

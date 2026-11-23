@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/LukeEvansTech/terraform-provider-nextdns/internal/nextdns"
+	"github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns/internal/nextdns"
 	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/diag"

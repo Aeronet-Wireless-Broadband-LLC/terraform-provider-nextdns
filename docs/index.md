@@ -10,8 +10,9 @@ The NextDNS provider lets you declaratively manage the configuration of
 [NextDNS](https://nextdns.io/) profiles: security, privacy, parental control,
 settings, allowlist, denylist and rewrites.
 
-This is the `lukeevanstech/nextdns` fork of
-[`amalucelli/nextdns`](https://github.com/amalucelli/terraform-provider-nextdns).
+This is AeroNet's `aeronet-wireless-broadband-llc/nextdns` fork of
+[`LukeEvansTech/nextdns`](https://github.com/LukeEvansTech/terraform-provider-nextdns),
+itself a fork of [`amalucelli/nextdns`](https://github.com/amalucelli/terraform-provider-nextdns).
 It adds the fourteen profile switches the upstream provider cannot manage
 (twelve security switches, `privacy.rotatingAdDomains` and `settings.bav`)
 and keeps the upstream schema otherwise unchanged, so an existing state
@@ -19,27 +20,8 @@ moves across with `state replace-provider` and no resource changes.
 
 ## Installation
 
-The provider is distributed from GitHub Releases through a
-[provider network mirror](https://opentofu.org/docs/cli/config/config-file/#provider-installation)
-hosted on GitHub Pages rather than a registry. Point the CLI at the mirror
-for this one provider and let everything else resolve directly:
-
-```hcl
-# .tofurc (or .terraformrc); select it with TF_CLI_CONFIG_FILE=.tofurc
-provider_installation {
-  network_mirror {
-    url     = "https://lukeevanstech.github.io/terraform-provider-nextdns/"
-    include = ["lukeevanstech/nextdns"]
-  }
-  direct {
-    exclude = ["lukeevanstech/nextdns"]
-  }
-}
-```
-
-The mirror serves the provider under both `registry.opentofu.org` and
-`registry.terraform.io` hostnames, so the same configuration works with
-OpenTofu and Terraform.
+Published on the OpenTofu registry as `aeronet-wireless-broadband-llc/nextdns`
+from this repository's signed GitHub Releases; no CLI configuration is needed.
 
 ## Example Usage
 
@@ -47,8 +29,8 @@ OpenTofu and Terraform.
 terraform {
   required_providers {
     nextdns = {
-      source  = "lukeevanstech/nextdns"
-      version = "~> 0.3"
+      source  = "aeronet-wireless-broadband-llc/nextdns"
+      version = "~> 0.7"
     }
   }
 }

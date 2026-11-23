@@ -8,13 +8,13 @@ import (
 	"flag"
 	"log"
 
-	"github.com/LukeEvansTech/terraform-provider-nextdns/nextdns"
+	"github.com/Aeronet-Wireless-Broadband-LLC/terraform-provider-nextdns/nextdns"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov5/tf5server"
 )
 
 // providerAddress is used for debug-mode reattach only; installation goes
 // through the network mirror, which serves both registry hostnames.
-const providerAddress = "registry.opentofu.org/lukeevanstech/nextdns"
+const providerAddress = "registry.opentofu.org/aeronet-wireless-broadband-llc/nextdns"
 
 func main() {
 	debug := flag.Bool("debug", false, "run with support for debuggers such as delve")

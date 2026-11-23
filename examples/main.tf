@@ -209,8 +209,8 @@ terraform {
 
   required_providers {
     nextdns = {
-      source  = "lukeevanstech/nextdns"
-      version = "~> 0.3"
+      source  = "aeronet-wireless-broadband-llc/nextdns"
+      version = "~> 0.7"
     }
   }
 }
