@@ -78,6 +78,22 @@ func (m *securityModel) extended(s *nextdns.Security) []securitySwitch {
 	}
 }
 
+// deprecated pairs the three switches NextDNS deprecated with their API
+// fields. They are read but never written.
+func (m *securityModel) deprecated(s *nextdns.Security) []securitySwitch {
+	return []securitySwitch{
+		{&m.IdnHomographs, &s.IdnHomographs},
+		{&m.TypoSquatting, &s.Typosquatting},
+		{&m.Dga, &s.Dga},
+	}
+}
+
+// readSwitches is every switch whose value state takes from the API when it
+// is not configured: the extended ones and the deprecated ones.
+func (m *securityModel) readSwitches(s *nextdns.Security) []securitySwitch {
+	return append(m.extended(s), m.deprecated(s)...)
+}
+
 func newSecurityResource() resource.Resource {
 	return &securityResource{}
 }
@@ -100,13 +116,22 @@ func (r *securityResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			"google_safe_browsing":      required("Google safe browsing."),
 			"crypto_jacking":            required("Cryptojacking protection."),
 			"dns_rebinding":             required("DNS rebinding protection."),
-			"idn_homographs":            required("IDN homograph attacks protection. Deprecated by NextDNS: the API ignores writes and always returns `false`, so set it to `false`. The protection is now part of `ai_threat_detection`."),
-			"typo_squatting":            required("Typosquatting protection. Deprecated by NextDNS: the API ignores writes and always returns `false`, so set it to `false`. The protection is now part of `ai_threat_detection`."),
-			"dga":                       required("Domain generation algorithms (DGAs) protection. Deprecated by NextDNS: the API ignores writes and always returns `false`, so set it to `false`."),
-			"nrd":                       required("Block newly registered domains (NRDs)."),
-			"ddns":                      required("Block dynamic DNS hostnames."),
-			"parking":                   required("Block parked domains."),
-			"csam":                      required("Block child sexual abuse material."),
+			"idn_homographs": deprecatedSwitch(
+				"IDN homograph attacks protection (API: `idnHomographs`). Deprecated by NextDNS, which ignores writes and always returns `false`; the protection is now part of `ai_threat_detection`. The provider never sends it and records the live value in state.",
+				"NextDNS deprecated idn_homographs: the API ignores writes and always returns false, and the protection is now part of ai_threat_detection. The provider no longer sends it. Remove it from the configuration.",
+			),
+			"typo_squatting": deprecatedSwitch(
+				"Typosquatting protection (API: `typosquatting`). Deprecated by NextDNS, which ignores writes and always returns `false`; the protection is now part of `ai_threat_detection`. The provider never sends it and records the live value in state.",
+				"NextDNS deprecated typo_squatting: the API ignores writes and always returns false, and the protection is now part of ai_threat_detection. The provider no longer sends it. Remove it from the configuration.",
+			),
+			"dga": deprecatedSwitch(
+				"Domain generation algorithms (DGAs) protection (API: `dga`). Deprecated by NextDNS, which ignores writes and always returns `false`; use `algorithmically_generated_domains`. The provider never sends it and records the live value in state.",
+				"NextDNS deprecated dga: the API ignores writes and always returns false. The provider no longer sends it. Remove it from the configuration and use algorithmically_generated_domains instead.",
+			),
+			"nrd":     required("Block newly registered domains (NRDs)."),
+			"ddns":    required("Block dynamic DNS hostnames."),
+			"parking": required("Block parked domains."),
+			"csam":    required("Block child sexual abuse material."),
 			"tlds": schema.ListAttribute{
 				Description: "Block top-level domains (TLDs).",
 				ElementType: types.StringType,
@@ -144,6 +169,20 @@ func extendedSwitch(description string) schema.BoolAttribute {
 	}
 }
 
+// deprecatedSwitch is the schema for a switch NextDNS deprecated. It is
+// Optional + Computed so that configurations written for earlier releases,
+// where it was required, still plan cleanly, and new ones can leave it out.
+// The value is never sent: state records what the API returns.
+func deprecatedSwitch(description, deprecation string) schema.BoolAttribute {
+	return schema.BoolAttribute{
+		Description:        description,
+		DeprecationMessage: deprecation,
+		Optional:           true,
+		Computed:           true,
+		PlanModifiers:      []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
+	}
+}
+
 func (r *securityResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	r.client = clientFrom(req.ProviderData, &resp.Diagnostics)
 }
@@ -160,6 +199,7 @@ func (r *securityResource) Update(ctx context.Context, req resource.UpdateReques
 // sent only when the configuration sets it, which is why the config is read
 // and not just the plan: in the plan an omitted switch already carries the
 // prior state's value. The value sent is the planned one (see configuredBool).
+// The deprecated switches are never sent.
 func (r *securityResource) write(ctx context.Context, config tfsdk.Config, plan tfsdk.Plan, state *tfsdk.State, diags *diag.Diagnostics) {
 	var m, cfg securityModel
 	diags.Append(plan.Get(ctx, &m)...)
@@ -175,9 +215,6 @@ func (r *securityResource) write(ctx context.Context, config tfsdk.Config, plan 
 		GoogleSafeBrowsing:      m.GoogleSafeBrowsing.ValueBool(),
 		Cryptojacking:           m.CryptoJacking.ValueBool(),
 		DNSRebinding:            m.DNSRebinding.ValueBool(),
-		IdnHomographs:           m.IdnHomographs.ValueBool(),
-		Typosquatting:           m.TypoSquatting.ValueBool(),
-		Dga:                     m.Dga.ValueBool(),
 		Nrd:                     m.Nrd.ValueBool(),
 		DDNS:                    m.DDNS.ValueBool(),
 		Parking:                 m.Parking.ValueBool(),
@@ -206,13 +243,13 @@ func (r *securityResource) write(ctx context.Context, config tfsdk.Config, plan 
 
 	// Switches still unknown were omitted on create: record what the API
 	// holds, or null when it does not report them.
-	if anyUnknown(m.extended(&nextdns.Security{})) {
+	if anyUnknown(m.readSwitches(&nextdns.Security{})) {
 		live, err := r.client.Security.Get(ctx, &nextdns.GetSecurityRequest{ProfileID: profileID})
 		if err != nil {
 			diags.AddError("Error reading back security settings", err.Error())
 			return
 		}
-		for _, sw := range m.extended(live) {
+		for _, sw := range m.readSwitches(live) {
 			if sw.attr.IsUnknown() {
 				*sw.attr = types.BoolPointerValue(*sw.api)
 			}
@@ -243,9 +280,6 @@ func (r *securityResource) Read(ctx context.Context, req resource.ReadRequest, r
 	m.GoogleSafeBrowsing = types.BoolValue(sec.GoogleSafeBrowsing)
 	m.CryptoJacking = types.BoolValue(sec.Cryptojacking)
 	m.DNSRebinding = types.BoolValue(sec.DNSRebinding)
-	m.IdnHomographs = types.BoolValue(sec.IdnHomographs)
-	m.TypoSquatting = types.BoolValue(sec.Typosquatting)
-	m.Dga = types.BoolValue(sec.Dga)
 	m.Nrd = types.BoolValue(sec.Nrd)
 	m.DDNS = types.BoolValue(sec.DDNS)
 	m.Parking = types.BoolValue(sec.Parking)
@@ -258,7 +292,7 @@ func (r *securityResource) Read(ctx context.Context, req resource.ReadRequest, r
 	m.Tlds = stringListFromAPI(tlds, m.Tlds)
 
 	// A switch the API does not return keeps its last known value.
-	for _, sw := range m.extended(sec) {
+	for _, sw := range m.readSwitches(sec) {
 		if *sw.api != nil {
 			*sw.attr = types.BoolValue(**sw.api)
 		}
