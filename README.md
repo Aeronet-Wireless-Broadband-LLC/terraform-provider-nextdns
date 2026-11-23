@@ -105,8 +105,7 @@ mise install
 go test ./...                          # stub-driven suite; TestMain points plugin-testing at the tofu on PATH
 mise exec -- golangci-lint run ./...
 go generate ./...                      # regenerate docs/
-mise exec -- goreleaser release --snapshot --clean   # local multi-platform build into dist/
-go run ./cmd/mirror-index -dist dist -version 0.3.0 -out site -copy-archives   # mirror layout, usable as a filesystem_mirror
+mise exec -- goreleaser release --snapshot --clean --skip=sign   # local multi-platform build into dist/ (unsigned)
 ```
 
 Live acceptance test (creates and destroys a throwaway profile in your account; never touches an existing one):
@@ -117,7 +116,7 @@ TF_ACC=1 NEXTDNS_API_KEY=... go test ./nextdns/ -run TestAccLive -v
 
 ## Release
 
-Pushing a `v*` tag builds unsigned multi-platform archives with GoReleaser, publishes them as a GitHub Release, renders the network-mirror JSON with `cmd/mirror-index` and deploys it to GitHub Pages. There is no GPG signing and no registry submission.
+Pushing a `v*` tag starts `.github/workflows/release.yaml` in the protected `release` environment (an approval is required). GoReleaser builds the multi-platform archives, signs `SHA256SUMS` with the release GPG key and publishes everything as a GitHub Release; the OpenTofu registry picks the release up from there and verifies the signature.
 
 ## Licence
 
