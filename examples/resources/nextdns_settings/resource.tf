@@ -28,4 +28,8 @@ resource "nextdns_settings" "this" {
   # Bypass Age Verification (v0.3.0). Optional + Computed: omit it to keep
   # the live value.
   bypass_age_verification = true
+
+  # settings.csam, separate from nextdns_security.csam. Optional + Computed:
+  # omit it to keep the live value.
+  csam = true
 }

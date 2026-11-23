@@ -43,6 +43,10 @@ resource "nextdns_settings" "this" {
   # Bypass Age Verification (v0.3.0). Optional + Computed: omit it to keep
   # the live value.
   bypass_age_verification = true
+
+  # settings.csam, separate from nextdns_security.csam. Optional + Computed:
+  # omit it to keep the live value.
+  csam = true
 }
 ```
 
@@ -58,8 +62,10 @@ resource "nextdns_settings" "this" {
 
 - `block_page` (Block List) Block Page. (see [below for nested schema](#nestedblock--block_page))
 - `bypass_age_verification` (Boolean) Bypass Age Verification (API: `bav`). Optional + Computed: omitting it keeps the live value and records it in state; an explicit true/false is written.
+- `csam` (Boolean) The profile-level CSAM setting (API: `settings.csam`), separate from `nextdns_security.csam`. Optional + Computed: omitting it keeps the live value and records it in state; an explicit true/false is written.
 - `logs` (Block List) Logs. (see [below for nested schema](#nestedblock--logs))
 - `performance` (Block List) Performance. (see [below for nested schema](#nestedblock--performance))
+- `reset_on_destroy` (Boolean) Whether destroying this resource also resets the live profile. Defaults to `false`: destroy only removes the resource from state and leaves the live profile unchanged. With `true`, destroy turns logging, the block page, the three performance options and `web3` off, leaving `bypass_age_verification` and `csam` as they are, as releases before the AeroNet fork always did. Destroy uses the value recorded in state, so apply a change to this attribute before destroying.
 
 ### Read-Only
 

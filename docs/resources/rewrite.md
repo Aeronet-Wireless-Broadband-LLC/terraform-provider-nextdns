@@ -32,7 +32,8 @@ resource "nextdns_rewrite" "this" {
 
 ### Optional
 
-- `rewrite` (Block Set) (see [below for nested schema](#nestedblock--rewrite))
+- `reset_on_destroy` (Boolean) Whether destroying this resource also resets the live profile. Defaults to `false`: destroy only removes the resource from state and leaves the live profile unchanged. With `true`, destroy deletes every rewrite on the profile, declared or not, as releases before the AeroNet fork always did. Destroy uses the value recorded in state, so apply a change to this attribute before destroying.
+- `rewrite` (Block Set) A DNS rewrite. The set is authoritative: an update deletes live rewrites that are not declared, including ones added outside OpenTofu. With no block, updates keep the profile without rewrites. (see [below for nested schema](#nestedblock--rewrite))
 
 ### Read-Only
 

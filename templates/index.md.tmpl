@@ -27,6 +27,15 @@ from this repository's signed GitHub Releases; no CLI configuration is needed.
 
 {{ tffile "examples/provider/provider.tf" }}
 
+## Destroy behaviour
+
+Destroying a profile-section resource (`nextdns_security`, `nextdns_privacy`,
+`nextdns_parental_control`, `nextdns_settings`, `nextdns_allowlist`,
+`nextdns_denylist`, `nextdns_rewrite`) only removes it from state and leaves
+the live profile unchanged, unless `reset_on_destroy = true` was applied
+first. Destroying `nextdns_profile` fails unless `deletion_protection = false`
+was applied first. Every resource imports by profile ID.
+
 ## Authentication
 
 An API key is required. Find it on the

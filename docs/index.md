@@ -41,6 +41,15 @@ provider "nextdns" {
 }
 ```
 
+## Destroy behaviour
+
+Destroying a profile-section resource (`nextdns_security`, `nextdns_privacy`,
+`nextdns_parental_control`, `nextdns_settings`, `nextdns_allowlist`,
+`nextdns_denylist`, `nextdns_rewrite`) only removes it from state and leaves
+the live profile unchanged, unless `reset_on_destroy = true` was applied
+first. Destroying `nextdns_profile` fails unless `deletion_protection = false`
+was applied first. Every resource imports by profile ID.
+
 ## Authentication
 
 An API key is required. Find it on the
@@ -53,4 +62,4 @@ or set the `NEXTDNS_API_KEY` environment variable.
 ### Optional
 
 - `api_key` (String, Sensitive) NextDNS API Key. Falls back to the `NEXTDNS_API_KEY` environment variable.
-- `base_url` (String) Base URL of the NextDNS API. Defaults to `https://api.nextdns.io/`; falls back to the `NEXTDNS_BASE_URL` environment variable. Only useful for testing against a stub.
+- `base_url` (String) Base URL of the NextDNS API. Defaults to `https://api.nextdns.io/`; falls back to the `NEXTDNS_BASE_URL` environment variable. Only useful for testing against a stub: the API key is sent to this URL, so only `https://api.nextdns.io/` and loopback URLs (`http://127.0.0.1:<port>/`, `http://localhost:<port>/`) are accepted, and anything else is a configuration error.

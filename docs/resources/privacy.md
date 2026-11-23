@@ -38,8 +38,9 @@ resource "nextdns_privacy" "this" {
 
 ### Optional
 
-- `blocklists` (List of String) Blocklists.
-- `natives` (List of String) Native tracking protection.
+- `blocklists` (Set of String) Blocklists, by id. A set: the order is irrelevant. The list is replaced as a whole; leaving it out clears it.
+- `natives` (Set of String) Native tracking protection, by id. A set: the order is irrelevant. The list is replaced as a whole; leaving it out clears it.
+- `reset_on_destroy` (Boolean) Whether destroying this resource also resets the live profile. Defaults to `false`: destroy only removes the resource from state and leaves the live profile unchanged. With `true`, destroy empties `blocklists` and `natives` and sets `allow_affiliate` and `disguised_trackers` to false, leaving `rotating_ad_domains` as it is, as releases before the AeroNet fork always did. Destroy uses the value recorded in state, so apply a change to this attribute before destroying.
 - `rotating_ad_domains` (Boolean) Block rotating ad domains (API: `rotatingAdDomains`). Returned by the API since October 2026.
 
 ### Read-Only

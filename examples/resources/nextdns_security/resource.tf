@@ -6,14 +6,12 @@ resource "nextdns_security" "this" {
   google_safe_browsing      = false
   crypto_jacking            = true
   dns_rebinding             = true
-  idn_homographs            = false
-  typo_squatting            = false
-  dga                       = false
   nrd                       = true
   ddns                      = true
   parking                   = true
   csam                      = true
 
+  # A set: order does not matter. Leaving it out clears the list.
   tlds = ["autos", "bid", "loan"]
 
   # Extended switches (v0.3.0). Each is Optional + Computed: leave one out to
@@ -33,4 +31,7 @@ resource "nextdns_security" "this" {
   # fast_flux_networks and dns_data_exfiltration are returned by the API but
   # hidden in the dashboard for some profiles; omit them until a write has
   # been proven to take effect on yours.
+
+  # idn_homographs, typo_squatting and dga are deprecated by NextDNS and never
+  # sent; leave them out.
 }

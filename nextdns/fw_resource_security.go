@@ -110,7 +110,7 @@ func (r *securityResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 		Attributes: map[string]schema.Attribute{
 			"id":                        idAttribute(),
 			"profile_id":                profileIDAttribute(),
-			"reset_on_destroy":          resetOnDestroyAttribute("clears the TLD list and turns the twelve base switches off (`threat_intelligence_feeds` through `csam`), leaving the extended switches as they are"),
+			"reset_on_destroy":          resetOnDestroyAttribute("clears the TLD list and turns the nine base switches off (`threat_intelligence_feeds`, `ai_threat_detection`, `google_safe_browsing`, `crypto_jacking`, `dns_rebinding`, `nrd`, `ddns`, `parking`, `csam`), leaving the extended and deprecated switches as they are"),
 			"threat_intelligence_feeds": required("Threat intelligence feeds."),
 			"ai_threat_detection":       required("AI-Driven threat detection."),
 			"google_safe_browsing":      required("Google safe browsing."),
@@ -303,8 +303,8 @@ func (r *securityResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 // Delete only removes the resource from state, unless reset_on_destroy is
 // set: then it clears the TLD list and PATCHes an empty security object,
-// which sets the original switches to false and leaves the extended ones as
-// they are.
+// which sets the nine base switches to false and leaves the extended and
+// deprecated ones as they are.
 func (r *securityResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var m securityModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &m)...)

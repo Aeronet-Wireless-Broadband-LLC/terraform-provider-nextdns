@@ -21,14 +21,12 @@ resource "nextdns_security" "this" {
   google_safe_browsing      = false
   crypto_jacking            = true
   dns_rebinding             = true
-  idn_homographs            = false
-  typo_squatting            = false
-  dga                       = false
   nrd                       = true
   ddns                      = true
   parking                   = true
   csam                      = true
 
+  # A set: order does not matter. Leaving it out clears the list.
   tlds = ["autos", "bid", "loan"]
 
   # Extended switches (v0.3.0). Each is Optional + Computed: leave one out to
@@ -48,6 +46,9 @@ resource "nextdns_security" "this" {
   # fast_flux_networks and dns_data_exfiltration are returned by the API but
   # hidden in the dashboard for some profiles; omit them until a write has
   # been proven to take effect on yours.
+
+  # idn_homographs, typo_squatting and dga are deprecated by NextDNS and never
+  # sent; leave them out.
 }
 ```
 
@@ -60,30 +61,31 @@ resource "nextdns_security" "this" {
 - `crypto_jacking` (Boolean) Cryptojacking protection.
 - `csam` (Boolean) Block child sexual abuse material.
 - `ddns` (Boolean) Block dynamic DNS hostnames.
-- `dga` (Boolean) Domain generation algorithms (DGAs) protection. Deprecated by NextDNS: the API ignores writes and always returns `false`, so set it to `false`.
 - `dns_rebinding` (Boolean) DNS rebinding protection.
 - `google_safe_browsing` (Boolean) Google safe browsing.
-- `idn_homographs` (Boolean) IDN homograph attacks protection. Deprecated by NextDNS: the API ignores writes and always returns `false`, so set it to `false`. The protection is now part of `ai_threat_detection`.
 - `nrd` (Boolean) Block newly registered domains (NRDs).
 - `parking` (Boolean) Block parked domains.
 - `profile_id` (String) The profile identifier to target the resource.
 - `threat_intelligence_feeds` (Boolean) Threat intelligence feeds.
-- `typo_squatting` (Boolean) Typosquatting protection. Deprecated by NextDNS: the API ignores writes and always returns `false`, so set it to `false`. The protection is now part of `ai_threat_detection`.
 
 ### Optional
 
 - `algorithmically_generated_domains` (Boolean) Block algorithmically generated domains (API: `algorithmicallyGeneratedDomains`). Returned by the API since October 2026; a separate switch from the deprecated `dga`.
 - `data_drop_services` (Boolean) Block data drop / paste services (API: `dataDropServices`).
 - `decentralized_web_gateways` (Boolean) Block decentralized web (IPFS, ENS) gateways (API: `decentralizedWebGateways`).
+- `dga` (Boolean, Deprecated) Domain generation algorithms (DGAs) protection (API: `dga`). Deprecated by NextDNS, which ignores writes and always returns `false`; use `algorithmically_generated_domains`. The provider never sends it and records the live value in state.
 - `dns_data_exfiltration` (Boolean) Block DNS data exfiltration (API: `dnsDataExfiltration`). Hidden in the dashboard for some profiles; the API returns it, but enforcement is unverified.
 - `dns_payload_delivery` (Boolean) Block DNS payload delivery (API: `dnsPayloadDelivery`).
 - `fast_flux_networks` (Boolean) Block fast-flux networks (API: `fastFluxNetworks`). Hidden in the dashboard for some profiles; the API returns it, but enforcement is unverified.
 - `free_hosting_domains` (Boolean) Block domains on free hosting providers (API: `freeHostingDomains`).
 - `high_risk_tlds` (Boolean) Block high-risk TLDs (API: `highRiskTlds`).
+- `idn_homographs` (Boolean, Deprecated) IDN homograph attacks protection (API: `idnHomographs`). Deprecated by NextDNS, which ignores writes and always returns `false`; the protection is now part of `ai_threat_detection`. The provider never sends it and records the live value in state.
 - `newly_active_domains` (Boolean) Block newly active domains (API: `newlyActiveDomains`). Returned by the API since September 2026.
+- `reset_on_destroy` (Boolean) Whether destroying this resource also resets the live profile. Defaults to `false`: destroy only removes the resource from state and leaves the live profile unchanged. With `true`, destroy clears the TLD list and turns the nine base switches off (`threat_intelligence_feeds`, `ai_threat_detection`, `google_safe_browsing`, `crypto_jacking`, `dns_rebinding`, `nrd`, `ddns`, `parking`, `csam`), leaving the extended and deprecated switches as they are, as releases before the AeroNet fork always did. Destroy uses the value recorded in state, so apply a change to this attribute before destroying.
 - `residential_hosting` (Boolean) Block domains served from residential IP space (API: `residentialHosting`).
-- `tlds` (List of String) Block top-level domains (TLDs).
+- `tlds` (Set of String) Block top-level domains (TLDs). A set: the order is irrelevant. The list is replaced as a whole; leaving it out clears it.
 - `tunneling_endpoints` (Boolean) Block tunneling and DNS-over-anything endpoints (API: `tunnelingEndpoints`).
+- `typo_squatting` (Boolean, Deprecated) Typosquatting protection (API: `typosquatting`). Deprecated by NextDNS, which ignores writes and always returns `false`; the protection is now part of `ai_threat_detection`. The provider never sends it and records the live value in state.
 - `untrusted_certificates` (Boolean) Block domains presenting untrusted certificates (API: `untrustedCertificates`).
 
 ### Read-Only
