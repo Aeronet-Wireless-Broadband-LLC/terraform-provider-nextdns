@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-go/tfprotov5"
+	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
 // TestMain points terraform-plugin-testing at OpenTofu when no binary has
@@ -81,4 +83,47 @@ provider "nextdns" {
   base_url = %q
 }
 `, f.Server.URL+"/")
+}
+
+// The API key is sent to base_url, so anything other than the API or a
+// loopback stub is a configuration error, whether it is set in the provider
+// block or through NEXTDNS_BASE_URL.
+func TestProvider_BaseURLMustBeTheAPIOrLoopback(t *testing.T) {
+	profile := `
+resource "nextdns_profile" "this" {
+  name = "base-url-check"
+}
+`
+	for name, tc := range map[string]struct{ block, env string }{
+		"attribute": {block: `
+provider "nextdns" {
+  api_key  = "test-key"
+  base_url = "https://example.com/"
+}
+`},
+		"plain http to the API host": {block: `
+provider "nextdns" {
+  api_key  = "test-key"
+  base_url = "http://api.nextdns.io/"
+}
+`},
+		"environment": {block: `
+provider "nextdns" {
+  api_key = "test-key"
+}
+`, env: "http://192.0.2.10/"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if tc.env != "" {
+				t.Setenv("NEXTDNS_BASE_URL", tc.env)
+			}
+			resource.UnitTest(t, resource.TestCase{
+				ProtoV5ProviderFactories: protoV5ProviderFactories(),
+				Steps: []resource.TestStep{{
+					Config:      tc.block + profile,
+					ExpectError: regexp.MustCompile(`Invalid NextDNS base URL`),
+				}},
+			})
+		})
+	}
 }

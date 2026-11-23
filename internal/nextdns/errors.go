@@ -3,6 +3,7 @@ package nextdns
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 )
 
@@ -41,8 +42,12 @@ type ErrorResponse struct {
 type Error struct {
 	Type    ErrorType
 	Message string
-	Errors  *ErrorResponse
-	Meta    map[string]string
+	// Errors is the API's error body. It is nil for 5xx responses and for
+	// bodies that are not JSON.
+	Errors *ErrorResponse
+	Meta   map[string]string
+	// StatusCode is the HTTP status of the response.
+	StatusCode int
 }
 
 // Error returns the string representation of the error.
@@ -50,7 +55,7 @@ type Error struct {
 func (e *Error) Error() string {
 	var out strings.Builder
 
-	if len(e.Errors.Errors) > 0 {
+	if e.Errors != nil && len(e.Errors.Errors) > 0 {
 		fmt.Fprintf(&out, "%s (%s): ", e.Message, e.Type)
 		for _, er := range e.Errors.Errors {
 			if er.Detail != "" {
@@ -61,6 +66,9 @@ func (e *Error) Error() string {
 		}
 	} else {
 		out.WriteString(e.Message)
+		if e.StatusCode != 0 {
+			fmt.Fprintf(&out, " (HTTP %d %s)", e.StatusCode, http.StatusText(e.StatusCode))
+		}
 	}
 
 	return out.String()
